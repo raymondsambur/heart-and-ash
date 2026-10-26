@@ -56,6 +56,12 @@ Done when: you can set rules, close the game for an evening, come back to a repo
 - Settlement tiers (hamlet, village, town) with unlocks.
 - Balance, art polish, tutorial hints, accessibility.
 
+## Detailed specs
+
+- M1: `docs/notes/m1-agent-brain-spec.md` (the villager brain, needs, skills, traits, ambitions, actions, planner, job board, villager sheet, acceptance).
+- M2: `docs/notes/m2-construction-feasibility.md` (a tested way to draw buildings under construction, with `docs/notes/img/construction-feasibility.png`).
+- M3 and balance for all milestones: `docs/notes/balance-v0.md` (time scale, food, winter, construction costs, population, survival targets).
+
 ## How the work is split
 
 - Design, review and merging: the owner's main session.
