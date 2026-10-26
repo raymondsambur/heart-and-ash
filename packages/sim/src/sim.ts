@@ -1,40 +1,45 @@
 import {
+  DAYS_PER_YEAR,
   GAME_HOUR_MS,
-  LOOK_RANGES,
   Rng,
   SIM_STEP_MS,
   SPEEDS,
-  STEP_MS,
+  START_STOCK,
+  GOODS,
   generateWorld,
-  personName,
-  tileSpeed,
   villageName,
-  findPath,
   worldPathGrid,
   type BuildingDef,
-  type Dir,
-  type EntityView,
-  type Look,
+  type Good,
   type PathGrid,
+  type PersonSheet,
   type PlotDef,
-  type Point,
   type Speed,
   type TimeView,
   type VillageView,
-  type WeatherKind,
   type WorldData,
 } from '@hearth/shared';
+import { newField } from './actions';
+import { drawAmbitions, reviewAmbitions } from './ambitions';
 import { clockOf, dayOf } from './calendar';
-import { PLACE_WEIGHT, placesOf, type Place } from './places';
+import type { Ctx } from './ctx';
+import { tickPerson } from './exec';
+import { refreshJobs } from './jobs';
+import { dailyLife } from './life';
+import { temperature } from './needs';
+import { newPerson, planHouseholds, TRADE_ROTA } from './people';
 import { restoreState, serializeState, type SimSnapshot } from './serialize';
-import type { CommandResult, SimCommand, SimEvent, SimState, Villager } from './types';
+import { SiteIndex } from './sites';
+import type { CommandResult, Person, SimCommand, SimEvent, SimState } from './types';
+import { briefOf, entityView, sheetOf } from './views';
 import { rollWeather } from './weather';
+import { relOf } from './util';
 
 export interface CreateSimOptions {
   seed: number;
   /** A snapshot produced by `serialize`; when given, `seed` must match it. */
   saved?: SimSnapshot | null;
-  /** Number of placeholder villagers for a new village (default 12). The bench uses larger numbers. */
+  /** Number of people in a new village (default 12). The bench uses larger numbers. */
   population?: number;
 }
 
@@ -51,38 +56,23 @@ export interface Sim {
   step(dtGameMs: number): void;
   /** Data for the client. Entity `step` and `route` are in game ms and tiles. */
   view(): VillageView;
+  /** The sheet of one person, or null when they are not on the map. */
+  sheet(id: number): PersonSheet | null;
   /** Events since the last call (reports, feed items, notifications). */
   events(): SimEvent[];
   /** Full state, versioned. */
   serialize(): SimSnapshot;
+  /** Read-only look at the state for the soak script and tests. */
+  inspect(): Readonly<SimState>;
 }
 
-const INITIAL_STOCK = { grain: 80, firewood: 30, timber: 24, stone: 12 };
-const ROUTE_LOOKAHEAD = 6;
+const FEED_IN_VIEW = 40;
+const POOL = 8;
 
-function randomLook(rng: Rng): Look {
-  return {
-    gender: rng.int(0, 1) as 0 | 1,
-    skin: rng.int(0, LOOK_RANGES.skin - 1),
-    hairStyle: rng.int(0, LOOK_RANGES.hairStyle - 1),
-    hairColor: rng.int(0, LOOK_RANGES.hairColor - 1),
-    outfit: 0,
-    outfitColor: rng.int(0, LOOK_RANGES.outfitColor - 1),
-    sashColor: rng.int(0, LOOK_RANGES.sashColor - 1),
-    accessory: rng.chance(0.25) ? rng.int(1, LOOK_RANGES.accessory - 1) : 0,
-  };
-}
-
-function faceOf(dx: number, dy: number, keep: Dir): Dir {
-  if (dx === 0 && dy === 0) return keep;
-  const sx = dx - dy;
-  const sy = dx + dy;
-  if (sy >= 0) return sx >= 0 ? 0 : 1;
-  return sx >= 0 ? 3 : 2;
-}
-
-function isNight(hours: number): boolean {
-  return hours >= 21 || hours < 5.5;
+/** Sites a new person already knows: everything fixed in the village, and what lies near their own home. */
+export function startingKnowledge(sites: SiteIndex, home: { x: number; y: number } | null): number[] {
+  const fixed = new Set(['home', 'store', 'shrine', 'field', 'water', 'plaza', 'edge']);
+  return sites.sites.filter((s) => fixed.has(s.kind) || (home && Math.abs(s.x - home.x) + Math.abs(s.y - home.y) < 24)).map((s) => s.id);
 }
 
 export function createSim(opts: CreateSimOptions): Sim {
@@ -96,185 +86,156 @@ export function createSim(opts: CreateSimOptions): Sim {
     if (opts.saved.seed !== opts.seed) throw new Error(`snapshot is for seed ${opts.saved.seed}, not ${opts.seed}`);
     st = restoreState(opts.saved, rng);
   } else {
-    st = newState(opts.seed, world, rng, opts.population ?? 12);
+    st = emptyState(opts.seed);
   }
+  const sites = new SiteIndex(world, st.buildings, st.plots);
 
-  const places: Place[] = placesOf(world, st.buildings, st.plots);
-  const placeOfBuilding = (id: number): number => places.findIndex((p) => p.building === id);
+  // ---- the shared context, refreshed once per step ----
+  let byId = new Map<number, Person>();
+  let living: Person[] = [];
+  let stale = true;
+  const rebuild = (): void => {
+    byId = new Map(st.people.map((p) => [p.id, p]));
+    living = st.people.filter((p) => !p.away);
+    stale = false;
+  };
+  const c: Ctx = {
+    st,
+    world,
+    grid,
+    sites,
+    rng,
+    pending,
+    now: 0,
+    day: 0,
+    hour: 0,
+    season: 0,
+    temp: 10,
+    weather: 'clear',
+    person(id) {
+      if (stale) rebuild();
+      return byId.get(id);
+    },
+    get people() {
+      if (stale) rebuild();
+      return living;
+    },
+    dirty() {
+      stale = true;
+    },
+  };
+  const sync = (): void => {
+    const clock = clockOf(st.totalMs);
+    c.now = st.totalMs;
+    c.day = clock.day;
+    c.hour = clock.hours;
+    c.season = clock.season;
+    c.weather = st.weather;
+    c.temp = temperature(clock.season, clock.hours, st.weather);
+  };
 
-  function newState(seed: number, w: WorldData, r: Rng, population: number): SimState {
-    const buildings: BuildingDef[] = w.start.buildings.map((b) => ({ ...b, door: { ...b.door } }));
-    const plots: PlotDef[] = w.start.plots.map((p) => ({ ...p }));
-    const homes = buildings.filter((b) => b.kind === 'house');
-    const state: SimState = {
+  function emptyState(seed: number): SimState {
+    const buildings: BuildingDef[] = world.start.buildings.map((b) => ({ ...b, door: { ...b.door } }));
+    const plots: PlotDef[] = world.start.plots.map((p) => ({ ...p }));
+    const stock = Object.fromEntries(GOODS.map((g) => [g, START_STOCK[g] ?? 0])) as Record<Good, number>;
+    return {
       seed,
       totalMs: 0,
       carryMs: 0,
       speed: 1,
       weather: 'clear',
       nextId: 1,
-      villageName: villageName(r),
-      stock: { ...INITIAL_STOCK },
+      villageName: villageName(rng),
+      stock,
       buildings,
       plots,
-      villagers: [],
+      fields: plots.filter((p) => p.kind === 'field').map((p) => newField(p.id)),
+      jobs: [],
+      nextJobId: 1,
+      jobsAt: -1,
+      people: [],
+      graves: [],
+      feed: [],
+      nextFeedId: 1,
+      fires: {},
+      lastDay: 0,
+      stats: {},
+      pool: POOL,
     };
-    state.weather = rollWeather(r, 'clear', 0);
-    for (let i = 0; i < population; i++) {
+  }
+
+  /** Fill a new village: households under the roofs, kin and neighbours who know each other, first dreams. */
+  function populate(population: number): void {
+    const homes = st.buildings.filter((b) => b.kind === 'house');
+    sync();
+    st.weather = rollWeather(rng, 'clear', 0);
+    c.weather = st.weather;
+    const households = planHouseholds(rng, population);
+    const byHome = new Map<number, Person[]>();
+    households.forEach((h, i) => {
       const home = homes[i % homes.length];
-      state.villagers.push({
-        id: state.nextId++,
-        name: personName(r),
-        look: randomLook(r),
-        role: i === 0 ? 'elder' : 'villager',
-        home: home.id,
-        x: home.door.x,
-        y: home.door.y,
-        path: [],
-        nx: home.door.x,
-        ny: home.door.y,
-        stepMs: 0,
-        stepLeft: 0,
-        face: 0,
-        act: null,
-        wait: r.int(0, 8000),
-        goal: -1,
-      });
-    }
-    return state;
+      const known = startingKnowledge(sites, home.door);
+      const fam: Person[] = [];
+      const make = (age: number, sex: 0 | 1, parents?: Person[]): Person => {
+        const p = newPerson({ id: st.nextId++, rng, sex, age, day: 0, home: home.id, x: home.door.x, y: home.door.y, known, parents, trade: TRADE_ROTA[(st.nextId + i) % TRADE_ROTA.length] });
+        st.people.push(p);
+        fam.push(p);
+        return p;
+      };
+      const adults = h.adults.map((a) => make(a.age, a.sex));
+      const elders = h.elders.map((a) => make(a.age, a.sex));
+      if (adults.length === 2) {
+        adults[0].partner = adults[1].id;
+        adults[1].partner = adults[0].id;
+      }
+      const kids = h.kids.map((age) => make(age, rng.int(0, 1) as 0 | 1, adults.length ? adults : undefined));
+      for (const k of kids) for (const a of adults) a.children.push(k.id);
+      for (const k of kids) k.parents = adults.map((a) => a.id);
+      for (const a of fam) for (const b of fam) if (a !== b) Object.assign(relOf(a, b.id), { fam: 80, aff: 45 + rng.int(0, 20), rom: a.partner === b.id ? 70 : 0 });
+      byHome.set(home.id, (byHome.get(home.id) ?? []).concat(fam));
+    });
+    // neighbours: everybody knows everybody a little, in a village this small
+    const all = st.people;
+    for (const a of all) for (const b of all) if (a !== b && !a.relations[b.id]) Object.assign(relOf(a, b.id), { fam: 12 + rng.int(0, 25), aff: rng.int(-8, 22), rom: 0 });
+    stale = true;
+    for (const p of st.people) drawAmbitions(c, p);
   }
 
-  function startStep(v: Villager): void {
-    const next = v.path.shift();
-    if (!next) {
-      v.stepMs = 0;
-      return;
-    }
-    const diag = next.x !== v.x && next.y !== v.y ? Math.SQRT2 : 1;
-    const speed = tileSpeed(world, next.x, next.y) || 1;
-    v.nx = next.x;
-    v.ny = next.y;
-    v.stepMs = Math.round((STEP_MS * diag) / speed);
-    v.stepLeft = v.stepMs;
-    v.face = faceOf(next.x - v.x, next.y - v.y, v.face);
-    v.act = null;
-  }
+  if (!opts.saved) populate(opts.population ?? 12);
+  sync();
 
-  function goTo(v: Villager, target: Point, goal: number): boolean {
-    const path = findPath(grid, v.x, v.y, target.x, target.y);
-    if (!path) return false;
-    v.goal = goal;
-    v.path = path;
-    if (path.length > 0) startStep(v);
-    return true;
-  }
-
-  function pickPlace(): number {
-    const items: (readonly [number, number])[] = places.map((p, i) => [i, PLACE_WEIGHT[p.kind]] as const);
-    return rng.weighted(items);
-  }
-
-  function arrive(v: Villager, hours: number): void {
-    const place = v.goal >= 0 ? places[v.goal] : undefined;
-    if (isNight(hours)) {
-      v.act = 'rest';
-      v.wait = 10_000;
-    } else {
-      v.act = place?.act ?? null;
-      v.wait = rng.int(8000, 24000);
+  // ---- ticking ----
+  function newDay(day: number, prevSeason: number, season: number, year: number): void {
+    pending.push({ t: 'day', day });
+    if (season !== prevSeason) pending.push({ t: 'season', season, year });
+    const next = rollWeather(rng, st.weather, season);
+    if (next !== st.weather) {
+      st.weather = next;
+      pending.push({ t: 'weather', kind: next });
     }
-    v.goal = -1;
-  }
-
-  function decide(v: Villager, hours: number): void {
-    if (isNight(hours)) {
-      const home = placeOfBuilding(v.home);
-      const door = home >= 0 ? places[home].at : { x: v.x, y: v.y };
-      if (v.x === door.x && v.y === door.y) {
-        v.act = 'rest';
-        v.wait = 10_000;
-      } else if (!goTo(v, door, home)) v.wait = 2000;
-      return;
-    }
-    const gi = pickPlace();
-    const place = places[gi];
-    let target = place.at;
-    if (place.plot) {
-      const p = place.plot;
-      target = { x: p.x + rng.int(0, p.w - 1), y: p.y + rng.int(0, p.d - 1) };
-    }
-    if (target.x === v.x && target.y === v.y) {
-      v.goal = gi;
-      arrive(v, hours);
-    } else if (!goTo(v, target, gi)) v.wait = 2000;
-  }
-
-  function tickVillager(v: Villager, dt: number, hours: number): void {
-    if (v.stepMs > 0) {
-      v.stepLeft -= dt;
-      if (v.stepLeft > 0) return;
-      v.x = v.nx;
-      v.y = v.ny;
-      v.stepMs = 0;
-      v.stepLeft = 0;
-      if (v.path.length > 0) startStep(v);
-      else arrive(v, hours);
-      return;
-    }
-    if (v.wait > 0) {
-      v.wait -= dt;
-      if (v.wait > 0) return;
-      v.act = null;
-    }
-    decide(v, hours);
+    sync();
+    dailyLife(c);
+    for (const p of c.people) reviewAmbitions(c, p);
   }
 
   function tick(dt: number): void {
     const before = st.totalMs;
     st.totalMs += dt;
-    const clock = clockOf(st.totalMs);
-    const dayBefore = dayOf(before);
-    const dayNow = dayOf(st.totalMs);
-    if (dayNow !== dayBefore) {
-      const prev = clockOf(before);
-      pending.push({ t: 'day', day: dayNow });
-      if (clock.season !== prev.season) pending.push({ t: 'season', season: clock.season, year: clock.year });
-      const next = rollWeather(rng, st.weather, clock.season);
-      if (next !== st.weather) {
-        st.weather = next;
-        pending.push({ t: 'weather', kind: next });
-      }
+    const prev = clockOf(before);
+    const now = clockOf(st.totalMs);
+    sync();
+    if (now.day !== prev.day) newDay(now.day, prev.season, now.season, now.year);
+    if (st.jobsAt < 0 || st.totalMs - st.jobsAt >= GAME_HOUR_MS) {
+      st.jobsAt = st.totalMs;
+      refreshJobs(c);
     }
-    for (const v of st.villagers) tickVillager(v, dt, clock.hours);
+    for (const p of c.people) {
+      if (p.counters.dead) continue;
+      tickPerson(c, p, dt);
+    }
   }
 
-  function entityView(v: Villager): EntityView {
-    const moving = v.stepMs > 0;
-    const e: EntityView = {
-      id: v.id,
-      name: v.name,
-      x: v.x,
-      y: v.y,
-      face: v.face,
-      state: moving ? 'walk' : v.act === 'rest' ? 'rest' : v.act ? 'work' : 'idle',
-      look: v.look,
-      role: v.role,
-    };
-    if (moving) {
-      e.nx = v.nx;
-      e.ny = v.ny;
-      e.step = v.stepMs;
-      // The tiles after the step in progress, so a client running faster than the update rate keeps walking.
-      const n = Math.min(ROUTE_LOOKAHEAD, v.path.length);
-      if (n > 0) {
-        const route: number[] = [];
-        for (let i = 0; i < n; i++) route.push(v.path[i].x, v.path[i].y);
-        e.route = route;
-      }
-    } else if (v.act) e.act = v.act;
-    return e;
-  }
-
+  // The state object is replaced on restore only before this point, so `c.st` stays valid.
   return {
     seed: opts.seed,
     world,
@@ -302,25 +263,35 @@ export function createSim(opts: CreateSimOptions): Sim {
     },
 
     view(): VillageView {
-      const c = clockOf(st.totalMs);
+      sync();
+      const clock = clockOf(st.totalMs);
       const time: TimeView = {
-        hours: c.hours,
-        day: c.day,
-        dayOfSeason: c.dayOfSeason,
-        season: c.season,
-        year: c.year,
-        weather: st.weather as WeatherKind,
+        hours: clock.hours,
+        day: clock.day,
+        dayOfSeason: clock.dayOfSeason,
+        season: clock.season,
+        year: clock.year,
+        weather: st.weather,
         hourMs: GAME_HOUR_MS,
       };
+      const here = c.people;
       return {
         time,
         speed: st.speed,
-        entities: st.villagers.map(entityView),
+        entities: here.map((p) => entityView(c, p)),
         buildings: st.buildings.map((b) => ({ ...b, door: { ...b.door } })),
         plots: st.plots.map((p) => ({ ...p })),
-        stock: { ...st.stock },
-        population: st.villagers.length,
+        stock: Object.fromEntries(Object.entries(st.stock).map(([k, v]) => [k, Math.round(v * 10) / 10])),
+        population: here.length,
+        roster: here.map((p) => briefOf(c, p)),
+        feed: st.feed.slice(-FEED_IN_VIEW).map((f) => ({ ...f, people: f.people.slice() })),
       };
+    },
+
+    sheet(id: number): PersonSheet | null {
+      sync();
+      const p = c.person(id);
+      return p && !p.away ? sheetOf(c, p) : null;
     },
 
     events(): SimEvent[] {
@@ -330,5 +301,11 @@ export function createSim(opts: CreateSimOptions): Sim {
     serialize(): SimSnapshot {
       return serializeState(st, rng);
     },
+
+    inspect(): Readonly<SimState> {
+      return st;
+    },
   };
 }
+
+export { DAYS_PER_YEAR, dayOf };

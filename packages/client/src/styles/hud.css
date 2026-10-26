@@ -277,3 +277,367 @@
     display: none;
   }
 }
+
+/* ---- panels: villager list, sheet, feed ------------------------------------------------------- */
+.hud-bl {
+  position: absolute;
+  left: calc(var(--safe-l) + 0.6rem);
+  bottom: calc(var(--safe-b) + 0.8rem);
+  width: 21rem;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+}
+.hud-bl > * {
+  pointer-events: auto;
+}
+.hud-tr {
+  width: 19rem;
+  max-height: calc(100% - var(--safe-t) - var(--safe-b) - 1.2rem);
+}
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0.35rem 0.5rem 0.5rem;
+}
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+.panel-title {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--gold-hi);
+}
+.panel.collapsed .panel-body {
+  display: none;
+}
+.chips {
+  display: flex;
+  gap: 0.25rem;
+  margin: 0.15rem 0 0.35rem;
+  flex-wrap: wrap;
+}
+.chip {
+  font: inherit;
+  font-size: 0.7rem;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--line-faint);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.chip[aria-pressed='true'] {
+  color: var(--ink-0);
+  background: var(--gold);
+  border-color: var(--gold-hi);
+}
+.people-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 16rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.person-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  padding: 0.2rem 0.35rem;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.person-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.person-row.selected {
+  border-color: var(--gold);
+  background: rgba(217, 184, 103, 0.12);
+}
+.person-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  line-height: 1.2;
+}
+.person-name {
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.person-sub {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.person-flags {
+  font-size: 0.65rem;
+  color: var(--warn);
+}
+.mood-dot {
+  flex: none;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+.mood-good {
+  background: var(--good);
+}
+.mood-ok {
+  background: var(--gold);
+}
+.mood-low {
+  background: var(--warn);
+}
+.mood-bad {
+  background: var(--bad);
+}
+.feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 7.5rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.feed.expanded .feed-list {
+  max-height: 20rem;
+}
+.feed-line {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  font: inherit;
+  padding: 0.12rem 0.3rem;
+  border: 0;
+  border-left: 2px solid var(--line-faint);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  line-height: 1.25;
+}
+.feed-line:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.feed-when {
+  font-size: 0.62rem;
+  color: var(--text-faint);
+}
+.feed-text {
+  font-size: 0.76rem;
+}
+.feed-line.tone-bad {
+  border-left-color: var(--bad);
+}
+.feed-line.tone-warn {
+  border-left-color: var(--warn);
+}
+.feed-line.tone-good {
+  border-left-color: var(--good);
+}
+.feed-line.tone-info {
+  border-left-color: var(--info);
+}
+.feed-empty {
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  padding: 0.2rem 0.3rem;
+}
+
+.sheet {
+  overflow: hidden;
+}
+.sheet[hidden] {
+  display: none;
+}
+.sheet-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--line-faint);
+}
+.sheet-portrait {
+  width: 3rem;
+  height: 3.75rem;
+  image-rendering: pixelated;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: var(--radius);
+}
+.sheet-titles {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.2;
+}
+.sheet-name {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  color: var(--gold-hi);
+}
+.sheet-sub {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+.sheet-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-top: 0.3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  min-height: 0;
+}
+.sheet-sec h4 {
+  margin: 0 0 0.2rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.sheet-sec p {
+  margin: 0.1rem 0;
+}
+.sheet-doing {
+  font-weight: 600;
+}
+.dim {
+  color: var(--text-dim);
+}
+.warn {
+  color: var(--warn);
+}
+.neg {
+  color: var(--bad);
+}
+.pos {
+  color: var(--good);
+}
+.why summary {
+  cursor: pointer;
+  color: var(--info);
+  font-size: 0.74rem;
+}
+.mood-line {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.mood-line .hp {
+  margin-left: auto;
+}
+.bar {
+  height: 0.4rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+.bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  width: 0;
+}
+.causes,
+.memories {
+  margin: 0.2rem 0 0;
+  padding-left: 1rem;
+}
+.needs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.need {
+  display: grid;
+  grid-template-columns: 4.2rem 1fr 1.6rem;
+  align-items: center;
+  gap: 0.4rem;
+}
+.need-val {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}
+.dream {
+  padding: 0.25rem 0;
+}
+.dream-title {
+  font-weight: 600;
+}
+.dream.ended {
+  opacity: 0.7;
+}
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.tag {
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid var(--line-faint);
+  font-size: 0.72rem;
+}
+.tie {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  font: inherit;
+  padding: 0.12rem 0.2rem;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: var(--radius);
+}
+.tie:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+@media (max-width: 760px) {
+  /* With a villager open, the sheet takes the bottom half: the list and the feed step aside. */
+  .hud[data-sheet] .hud-bl,
+  .hud[data-sheet] .people {
+    display: none;
+  }
+  .hud-tr {
+    width: 11rem;
+  }
+  .hud-bl {
+    left: 0.4rem;
+    right: 0.4rem;
+    bottom: calc(var(--safe-b) + 4.4rem);
+    width: auto;
+  }
+  .feed-list {
+    max-height: 4.5rem;
+  }
+  .people-list {
+    max-height: 9rem;
+  }
+  .sheet {
+    position: fixed;
+    left: 0.4rem;
+    right: 0.4rem;
+    bottom: calc(var(--safe-b) + 4.4rem);
+    max-height: 55%;
+  }
+}

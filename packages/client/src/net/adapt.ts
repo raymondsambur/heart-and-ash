@@ -27,6 +27,8 @@ export function toRenderEntity(e: EntityView): RenderEntity {
   if (e.step !== undefined) r.step = e.step;
   if (e.route !== undefined) r.route = e.route;
   if (e.act !== undefined) r.act = e.act;
+  if (e.hidden) r.hidden = true;
+  if (e.child) r.child = true;
   const tag = e.role ? ROLE_TAG[e.role] : undefined;
   if (tag) r.tag = tag;
   return r;
@@ -37,5 +39,5 @@ export function toRenderEntity(e: EntityView): RenderEntity {
  * sent as `undefined` so the renderer clears them.
  */
 export function toRenderPatch(u: EntityUpdate): RenderEntityPatch {
-  return { id: u.id, x: u.x, y: u.y, nx: u.nx, ny: u.ny, step: u.step, route: u.route, face: u.face, state: renderState(u.state), act: u.act };
+  return { id: u.id, x: u.x, y: u.y, nx: u.nx, ny: u.ny, step: u.step, route: u.route, face: u.face, state: renderState(u.state), act: u.act, hidden: u.hidden };
 }

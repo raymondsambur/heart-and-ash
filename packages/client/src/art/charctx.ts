@@ -53,6 +53,8 @@ export interface CharSpecBase {
   special?: SpecialStyle;
   tool?: ToolKind | null;
   gear?: GearAppearance;
+  /** A child: drawn smaller. */
+  child?: boolean;
 }
 
 export function pickCut(l: Look): number {

@@ -11,6 +11,12 @@ describe('client message validation', () => {
     expect(ok({ t: 'ping', n: 7 })).toEqual({ ok: true, msg: { t: 'ping', n: 7 } });
   });
 
+  it('accepts watching a villager, or nobody', () => {
+    expect(ok({ t: 'inspect', id: 7 })).toEqual({ ok: true, msg: { t: 'inspect', id: 7 } });
+    expect(ok({ t: 'inspect', id: null })).toEqual({ ok: true, msg: { t: 'inspect', id: null } });
+    for (const id of [-1, 1.5, '3', undefined, 2 ** 40]) expect(ok({ t: 'inspect', id }).ok, String(id)).toBe(false);
+  });
+
   it('strips unknown fields', () => {
     expect(ok({ t: 'speed', speed: 2, admin: true })).toEqual({ ok: true, msg: { t: 'speed', speed: 2 } });
   });

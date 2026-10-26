@@ -7,7 +7,7 @@
  * - The village: `createSim` with the seed from `?seed=` (default 1337). The snapshot is kept in localStorage.
  * - The socket speaks the same protocol as the server: hello -> welcome + view, then `upd` five times a second.
  */
-import { PROTOCOL_VERSION, SIM_STEP_MS, generateWorld, hash32, type C2S, type EntityUpdate, type MeResponse, type S2C, type WorldPayload } from '@hearth/shared';
+import { PROTOCOL_VERSION, SIM_STEP_MS, generateWorld, hash32, type C2S, type EntityUpdate, type FeedEntry, type MeResponse, type S2C, type WorldPayload } from '@hearth/shared';
 import { createSim, type Sim, type SimSnapshot } from '@hearth/sim';
 import { encodeBase64 } from './base64';
 import type { HttpResponse, HttpTransport } from './api';
@@ -109,6 +109,10 @@ class MockSocket implements SocketLike {
   private acc = 0;
   private sinceView = 0;
   private sinceSave = 0;
+  private watch: number | null = null;
+  private sheetAt = 0;
+  private rosterJson = '';
+  private rosterAt = 0;
   private sim: Sim | null = null;
 
   constructor(
@@ -133,10 +137,17 @@ class MockSocket implements SocketLike {
       this.sim = this.load();
       const view = this.sim.view();
       this.known = new Set(view.entities.map((e) => e.id));
+      this.sim.events();
+      this.rosterJson = JSON.stringify(view.roster);
       this.emit({ t: 'welcome', v: PROTOCOL_VERSION, user: { id: 1, username: 'mock' }, village: { name: this.sim.serialize().villageName, seed: this.sim.seed } });
       this.emit({ t: 'view', view });
       this.last = performance.now();
       this.timer = setInterval(() => this.tick(), 100);
+      return;
+    }
+    if (msg.t === 'inspect' && this.sim) {
+      this.watch = msg.id;
+      this.sendSheet();
       return;
     }
     if (msg.t === 'speed' && this.sim) {
@@ -164,6 +175,8 @@ class MockSocket implements SocketLike {
       this.sinceView = 0;
       this.update();
     }
+    this.sheetAt += real;
+    if (this.sheetAt >= 1000) this.sendSheet();
     this.sinceSave += real;
     if (this.sinceSave >= 5000) {
       this.sinceSave = 0;
@@ -175,12 +188,29 @@ class MockSocket implements SocketLike {
     const sim = this.sim;
     if (!sim) return;
     const v = sim.view();
-    const ents: EntityUpdate[] = v.entities.map((e) => ({ id: e.id, x: e.x, y: e.y, nx: e.nx, ny: e.ny, step: e.step, route: e.route, face: e.face, state: e.state, act: e.act }));
+    const ents: EntityUpdate[] = v.entities.map((e) => ({ id: e.id, x: e.x, y: e.y, nx: e.nx, ny: e.ny, step: e.step, route: e.route, face: e.face, state: e.state, act: e.act, hidden: e.hidden }));
     const add = v.entities.filter((e) => !this.known.has(e.id));
     const seen = new Set(v.entities.map((e) => e.id));
     const del = [...this.known].filter((id) => !seen.has(id));
     this.known = seen;
-    this.emit({ t: 'upd', time: v.time, speed: v.speed, population: v.population, ents, ...(add.length ? { add } : {}), ...(del.length ? { del } : {}), stock: v.stock });
+    const ro = JSON.stringify(v.roster);
+    const roster = ro !== this.rosterJson && performance.now() - this.rosterAt > 2000;
+    if (roster) {
+      this.rosterJson = ro;
+      this.rosterAt = performance.now();
+    }
+    this.emit({ t: 'upd', time: v.time, speed: v.speed, population: v.population, ents, ...(add.length ? { add } : {}), ...(del.length ? { del } : {}), stock: v.stock, ...(roster ? { roster: v.roster } : {}) });
+    const lines: FeedEntry[] = [];
+    for (const ev of sim.events()) if (ev.t === 'feed') lines.push({ ...ev.item });
+    if (lines.length) this.emit({ t: 'feed', items: lines });
+  }
+
+  private sendSheet(): void {
+    this.sheetAt = 0;
+    if (!this.sim || this.watch === null) return;
+    const sheet = this.sim.sheet(this.watch);
+    this.emit({ t: 'sheet', sheet });
+    if (!sheet) this.watch = null;
   }
 
   close(code = 1000, reason = ''): void {

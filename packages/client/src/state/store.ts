@@ -2,7 +2,7 @@
  * The client's central state: what the server last told us about the village, and the connection. Small on purpose,
  * the client holds no game rules. `subscribe(keys, fn)` is the only way UI parts learn about changes.
  */
-import type { BuildingDef, MeResponse, PlotDef, Speed, StockSummary, TimeView, VillageBrief } from '@hearth/shared';
+import type { BuildingDef, FeedEntry, MeResponse, PersonBrief, PersonSheet, PlotDef, Speed, StockSummary, TimeView, VillageBrief } from '@hearth/shared';
 import type { ConnInfo } from '../net/socket';
 
 export interface State {
@@ -14,6 +14,12 @@ export interface State {
   stock: StockSummary;
   buildings: BuildingDef[];
   plots: PlotDef[];
+  /** The villager list, the events feed (oldest first), the selected villager, their sheet, and whether the camera follows them. */
+  roster: PersonBrief[];
+  feed: FeedEntry[];
+  selected: number | null;
+  sheet: PersonSheet | null;
+  follow: boolean;
   conn: ConnInfo;
   /** Round-trip time to the server in ms, or null before the first answer. */
   latency: number | null;
@@ -31,6 +37,11 @@ export function initialState(): State {
     stock: {},
     buildings: [],
     plots: [],
+    roster: [],
+    feed: [],
+    selected: null,
+    sheet: null,
+    follow: false,
     conn: { state: 'idle', attempt: 0 },
     latency: null,
   };

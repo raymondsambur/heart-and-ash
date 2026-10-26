@@ -52,7 +52,7 @@ export interface FlashSprite extends Sprite {
 export function charKey(spec: CharSpec, dir: number = spec.dir): string {
   const l = spec.look;
   const g = spec.gear;
-  return `${l.gender}${l.skin}${l.hairStyle}${l.hairColor}${l.outfit}${l.outfitColor}${l.sashColor}${l.accessory}|${spec.weapon ?? '-'}|${spec.state}|${dir}|${spec.frame}|${spec.role ?? '-'}|${spec.faction ?? '-'}|${spec.elite ?? 0}|${spec.special ?? '-'}|${spec.tool ?? '-'}|${g ? gearKey(g) : '-'}|${spec.variant ?? 0}|${spec.wind ?? 0}|${spec.gaze ?? 0}|${spec.tilt ?? 0}|${spec.blink ? 1 : 0}`;
+  return `${l.gender}${l.skin}${l.hairStyle}${l.hairColor}${l.outfit}${l.outfitColor}${l.sashColor}${l.accessory}|${spec.weapon ?? '-'}|${spec.state}|${dir}|${spec.frame}|${spec.role ?? '-'}|${spec.faction ?? '-'}|${spec.elite ?? 0}|${spec.special ?? '-'}|${spec.tool ?? '-'}|${g ? gearKey(g) : '-'}|${spec.variant ?? 0}|${spec.wind ?? 0}|${spec.gaze ?? 0}|${spec.tilt ?? 0}|${spec.blink ? 1 : 0}|${spec.child ? 1 : 0}`;
 }
 
 /** Horizontally mirrored copy of a sprite (anchor, tip and glow mirrored too). */

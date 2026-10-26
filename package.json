@@ -15,6 +15,7 @@
     "start": "node --disable-warning=ExperimentalWarning dist/server.mjs",
     "deploy": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy.ps1",
     "bench": "tsx --tsconfig scripts/tsconfig.json scripts/bench.ts",
+    "soak": "tsx --tsconfig scripts/tsconfig.json scripts/soak.ts",
     "typecheck": "tsc -p packages/shared && tsc -p packages/sim && tsc -p packages/server && tsc -p packages/client && tsc -p scripts",
     "test": "vitest run"
   },

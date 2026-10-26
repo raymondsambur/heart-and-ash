@@ -55,6 +55,10 @@ export interface RenderEntity {
   /** Raid sides, for later milestones. */
   side?: 'raid' | 'def';
   flag?: 1;
+  /** Indoors: not drawn. */
+  hidden?: boolean;
+  /** A child: drawn smaller. */
+  child?: boolean;
 }
 
 export type RenderEntityPatch = Partial<Omit<RenderEntity, 'id' | 'kind'>> & { id: number };

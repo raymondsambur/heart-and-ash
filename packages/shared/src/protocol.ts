@@ -9,6 +9,7 @@
  */
 import type { BuildingDef, PlotDef } from './terrain';
 import type { Dir, Look, NpcAct, NpcRole, WeatherKind } from './types';
+import type { NeedId } from './data/needs';
 import type { Speed } from './constants';
 
 export const WS_PATH = '/ws';
@@ -76,10 +77,14 @@ export interface EntityView {
   role?: NpcRole;
   /** What they are doing while they stand still; the renderer plays a matching animation. */
   act?: NpcAct;
+  /** Indoors (not drawn). */
+  hidden?: true;
+  /** A child (drawn smaller). */
+  child?: true;
 }
 
 /** What changes about an entity from one update to the next (the rest is sent once, in `view` or `add`). */
-export type EntityUpdate = Pick<EntityView, 'id' | 'x' | 'y' | 'nx' | 'ny' | 'step' | 'route' | 'face' | 'state' | 'act'>;
+export type EntityUpdate = Pick<EntityView, 'id' | 'x' | 'y' | 'nx' | 'ny' | 'step' | 'route' | 'face' | 'state' | 'act' | 'hidden'>;
 
 export interface TimeView {
   /** Hour of the day, 0 up to 24. */
@@ -100,6 +105,92 @@ export interface TimeView {
 /** Goods in the village stockpile, summarised (M3 fills this with a real economy). */
 export type StockSummary = Record<string, number>;
 
+/** A line of the events feed. */
+export interface FeedEntry {
+  id: number;
+  day: number;
+  hour: number;
+  kind: string;
+  text: string;
+  people: number[];
+}
+
+/** One row of the villager list. */
+export interface PersonBrief {
+  id: number;
+  name: string;
+  age: number;
+  sex: 0 | 1;
+  /** What they are mostly known for ("Farmer", "Child", "Elder"). */
+  title: string;
+  /** What they are doing now, in words ("chopping wood"). */
+  doing: string;
+  mood: number;
+  /** Their lowest need and its value. */
+  lowest: { need: NeedId; v: number };
+  /** Short flags: `ill`, `pregnant`, `stuck`. */
+  flags: string[];
+}
+
+export interface SheetNeed {
+  id: NeedId;
+  label: string;
+  value: number;
+  /** Plain-words state ("hungry"), set when the need is low. */
+  state?: string;
+}
+
+export interface SheetRelation {
+  id: number;
+  name: string;
+  /** `partner`, `parent`, `child`, `sibling`, `friend`, `rival`, `acquaintance`, `sweetheart`. */
+  kind: string;
+  aff: number;
+  fam: number;
+  rom: number;
+}
+
+export interface SheetAmbition {
+  label: string;
+  text: string;
+  progress: number;
+  stuck?: string;
+  /** `fulfilled` or `abandoned`, with the reason, when it has ended. */
+  ended?: string;
+}
+
+/** Everything the villager sheet shows. */
+export interface PersonSheet {
+  id: number;
+  name: string;
+  age: number;
+  sex: 0 | 1;
+  look: Look;
+  title: string;
+  home: string;
+  needs: SheetNeed[];
+  /** The lowest need in a sentence: "Hungry: nothing to eat in the store". */
+  needNote: string;
+  mood: number;
+  moodWord: string;
+  moodCauses: { text: string; v: number }[];
+  hp: number;
+  maxHp: number;
+  ills: string[];
+  skills: { id: string; label: string; lv: number; pct: number }[];
+  traits: { id: string; label: string; desc: string }[];
+  ambitions: SheetAmbition[];
+  relations: SheetRelation[];
+  loyalty: number;
+  doing: string;
+  /** Why: the goal and where it came from, the runners-up, the plan, and what blocks it. */
+  why: { goal: string; source: string; top: { label: string; source: string; score: number }[]; plan: string; blocked?: string };
+  memories: { text: string; day: number; val: number }[];
+  carrying: string;
+  silver: number;
+  tools: number;
+}
+
 /** Everything the client draws from. The sim produces it; the server adds `step` conversion to real time. */
 export interface VillageView {
   time: TimeView;
@@ -109,6 +200,9 @@ export interface VillageView {
   plots: PlotDef[];
   stock: StockSummary;
   population: number;
+  roster: PersonBrief[];
+  /** The latest feed lines, oldest first. */
+  feed: FeedEntry[];
 }
 
 // ---------------------------------------------------------------------------
@@ -120,6 +214,8 @@ export type C2S =
   | { t: 'hello'; v: number }
   /** Time control: 0 pauses. */
   | { t: 'speed'; speed: Speed }
+  /** Watch one villager: the server then sends their sheet about once a second. `null` stops watching. */
+  | { t: 'inspect'; id: number | null }
   | { t: 'ping'; n: number };
 
 export type NoteLevel = 'info' | 'good' | 'warn' | 'bad';
@@ -143,7 +239,13 @@ export type S2C =
       buildings?: BuildingDef[];
       plots?: PlotDef[];
       stock?: StockSummary;
+      /** The villager list, when it changed (a few times a minute at most). */
+      roster?: PersonBrief[];
     }
+  /** New feed lines. */
+  | { t: 'feed'; items: FeedEntry[] }
+  /** The sheet of the watched villager (`null` when they are gone). */
+  | { t: 'sheet'; sheet: PersonSheet | null }
   | { t: 'note'; level: NoteLevel; text: string }
   | { t: 'err'; code: string; text: string }
   | { t: 'pong'; n: number };

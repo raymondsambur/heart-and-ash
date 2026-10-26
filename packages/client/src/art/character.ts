@@ -71,18 +71,19 @@ export function stateFromEntity(s: EntityState): CharState {
 }
 
 /** Size of the person relative to a normal adult (see scale.ts). */
-export function sizeMult(spec: Pick<CharSpec, 'special' | 'elite'>): number {
+export function sizeMult(spec: Pick<CharSpec, 'special' | 'elite' | 'child'>): number {
   const sp = spec.special ?? 'none';
   if (sp === 'hollow_lord') return SIZE_MULT.hollow_lord;
   if (sp === 'bandit_boss') return SIZE_MULT.bandit_boss;
   if (sp === 'hollow_brute') return SIZE_MULT.hollow_brute;
+  if (spec.child) return SIZE_MULT.child;
   if (spec.elite === 2) return SIZE_MULT.elite2;
   if (spec.elite === 1) return SIZE_MULT.elite1;
   return 1;
 }
 
 /** Total resample factor of the painted figure (`full` keeps the detailed design size, used by portraits). */
-export function charScale(spec: Pick<CharSpec, 'special' | 'elite' | 'full'>): number {
+export function charScale(spec: Pick<CharSpec, 'special' | 'elite' | 'full' | 'child'>): number {
   return (spec.full ? 1 : CHAR_K) * sizeMult(spec);
 }
 

@@ -6,7 +6,7 @@
  *   ui.settings   player-local settings
  *   ui.toast      feedback toasts
  */
-import type { NoteLevel } from '@hearth/shared';
+import type { Look, NoteLevel } from '@hearth/shared';
 import type { GameViewApi } from '../render/api';
 import type { GameSession } from '../state/session';
 import type { Store } from '../state/store';
@@ -14,7 +14,9 @@ import type { SettingsStore } from './settings';
 
 export interface UiContext {
   state: Store;
-  session: Pick<GameSession, 'setSpeed'>;
+  session: Pick<GameSession, 'setSpeed' | 'select' | 'setFollow'>;
+  /** Draw a person's portrait into a small canvas. */
+  portrait(canvas: HTMLCanvasElement, look: Look): void;
   gameView: GameViewApi;
   settings: SettingsStore;
   toast(text: string, level?: NoteLevel): void;
