@@ -80,6 +80,9 @@ export interface EntityView {
   act?: EntityAct;
 }
 
+/** What changes about an entity from one update to the next (the rest is sent once, in `view` or `add`). */
+export type EntityUpdate = Pick<EntityView, 'id' | 'x' | 'y' | 'nx' | 'ny' | 'step' | 'route' | 'face' | 'state' | 'act'>;
+
 export interface TimeView {
   /** Hour of the day, 0 up to 24. */
   hours: number;
@@ -127,8 +130,22 @@ export type S2C =
   | { t: 'welcome'; v: number; user: { id: number; username: string }; village: VillageBrief }
   /** The whole village, sent right after `welcome`. */
   | { t: 'view'; view: VillageView }
-  /** About five times a second. `buildings`, `plots` and `stock` are present only when they changed. */
-  | { t: 'upd'; time: TimeView; speed: Speed; entities: EntityView[]; population: number; buildings?: BuildingDef[]; plots?: PlotDef[]; stock?: StockSummary }
+  /**
+   * About five times a second. `ents` holds the state of every entity the client knows; `add` and `del` are present only
+   * when people arrive or leave; `buildings`, `plots` and `stock` only when they changed.
+   */
+  | {
+      t: 'upd';
+      time: TimeView;
+      speed: Speed;
+      population: number;
+      ents: EntityUpdate[];
+      add?: EntityView[];
+      del?: number[];
+      buildings?: BuildingDef[];
+      plots?: PlotDef[];
+      stock?: StockSummary;
+    }
   | { t: 'note'; level: NoteLevel; text: string }
   | { t: 'err'; code: string; text: string }
   | { t: 'pong'; n: number };

@@ -32,8 +32,3 @@ export type Speed = (typeof SPEEDS)[number];
 
 /** Game time to walk one tile at terrain speed 1. */
 export const STEP_MS = 420;
-
-export const MIN_USERNAME_LENGTH = 3;
-export const MAX_USERNAME_LENGTH = 24;
-export const MIN_PASSWORD_LENGTH = 8;
-export const MAX_PASSWORD_LENGTH = 128;

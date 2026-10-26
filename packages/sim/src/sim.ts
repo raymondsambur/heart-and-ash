@@ -43,6 +43,8 @@ export interface Sim {
   readonly seed: number;
   /** The static map (identical for a given seed). */
   readonly world: WorldData;
+  /** The time-control setting (0 = paused). The sim does not use it to advance: the host decides how many steps to run. */
+  readonly speed: Speed;
   /** Orders from the player. */
   command(cmd: SimCommand): CommandResult;
   /** Advance by `dtGameMs` of game time. Any chunking gives the same result. */
@@ -276,6 +278,10 @@ export function createSim(opts: CreateSimOptions): Sim {
   return {
     seed: opts.seed,
     world,
+
+    get speed(): Speed {
+      return st.speed;
+    },
 
     command(cmd: SimCommand): CommandResult {
       if (cmd.t === 'speed') {

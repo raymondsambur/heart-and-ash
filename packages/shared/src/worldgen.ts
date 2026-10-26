@@ -193,7 +193,7 @@ function placeVillage(c: Ctx): StartVillage {
 
   // Streets: a north-south road through the plaza, an east-west road (to the bridge) and a southern lane.
   for (let y = cy - 12; y <= cy + 12; y++) setTile(c, cx, y, T.Dirt);
-  for (let x = cx - 14; x <= cx + 26; x++) setTile(c, x, cy, T.Dirt);
+  for (let x = cx - 14; x <= cx + 26; x++) if (!isWaterT(c.terrain[ix(c, x, cy)])) setTile(c, x, cy, T.Dirt);
   for (let x = cx - 8; x <= cx + 10; x++) setTile(c, x, cy + 7, T.Dirt);
   // The plaza and the well.
   for (let y = cy - 2; y <= cy + 2; y++) for (let x = cx - 2; x <= cx + 2; x++) setTile(c, x, y, T.Plaza);
