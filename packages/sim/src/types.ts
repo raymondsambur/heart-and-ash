@@ -1,4 +1,4 @@
-import type { BuildingDef, Dir, EntityAct, Look, NpcRole, PlotDef, Point, Speed, WeatherKind } from '@hearth/shared';
+import type { BuildingDef, Dir, NpcAct, Look, NpcRole, PlotDef, Point, Speed, WeatherKind } from '@hearth/shared';
 
 /** A placeholder villager. M1 replaces these with real agents (needs, skills, traits, ambitions); the view they produce stays the same. */
 export interface Villager {
@@ -20,7 +20,7 @@ export interface Villager {
   stepLeft: number;
   face: Dir;
   /** What they are doing where they stand, and for how long they linger (game ms). */
-  act: EntityAct | null;
+  act: NpcAct | null;
   wait: number;
   /** Where they are heading: a place index (see places.ts), or -1 when they have nowhere to go. */
   goal: number;

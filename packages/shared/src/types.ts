@@ -9,12 +9,47 @@ export type Dir = 0 | 1 | 2 | 3;
 /** Looks are only visual cues for the art: what a person wears and carries. */
 export type NpcRole = 'villager' | 'guard' | 'merchant' | 'smith' | 'alchemist' | 'innkeeper' | 'master' | 'elder' | 'physician' | 'legend' | 'wanderer' | 'disciple';
 
+/** What the sprite shows a person doing. */
+export type ActorState = 'idle' | 'walk' | 'fight' | 'work' | 'meditate' | 'craft' | 'dead';
+
 export type WeatherKind = 'clear' | 'cloudy' | 'rain' | 'storm' | 'fog' | 'snow';
+
+/** Harvest points the art can draw (herbs, ore veins, shrines, Blight hearts). */
+export type NodeKind = 'herb' | 'rareHerb' | 'ore' | 'shrine' | 'heart';
+
+/**
+ * What a person is doing right now. The renderer plays a matching in-place animation while they stand still.
+ * Absent = no cue (the renderer may use ambient fidgets).
+ */
+export type NpcAct =
+  | 'work'
+  | 'farm'
+  | 'forge'
+  | 'brew'
+  | 'gather'
+  | 'mine'
+  | 'guard'
+  | 'eat'
+  | 'chat'
+  | 'pray'
+  | 'sweep'
+  | 'rest'
+  | 'patrol'
+  | 'trade'
+  | 'train'
+  | 'shelter'
+  | 'mourn'
+  | 'celebrate'
+  | 'meditate'
+  | 'spar'
+  | 'serve'
+  | 'loot';
 
 export type WeaponType = 'sword' | 'blade' | 'spear' | 'staff' | 'fist';
 export const WEAPON_TYPES: WeaponType[] = ['sword', 'blade', 'spear', 'staff', 'fist'];
 
-export type StatKey = 'might' | 'agility' | 'vitality' | 'spirit' | 'insight' | 'fortune';
+export const STAT_KEYS = ['might', 'agility', 'vitality', 'spirit', 'insight', 'fortune'] as const;
+export type StatKey = (typeof STAT_KEYS)[number];
 
 export type Rarity = 0 | 1 | 2 | 3 | 4;
 export const RARITY_COLORS = ['#b9b2a0', '#7ec26b', '#5fa4e8', '#b87ae6', '#f0a43a'] as const;

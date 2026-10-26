@@ -8,7 +8,7 @@
  * Keep this file additive: add fields and messages, avoid renaming.
  */
 import type { BuildingDef, PlotDef } from './terrain';
-import type { Dir, Look, NpcRole, WeatherKind } from './types';
+import type { Dir, Look, NpcAct, NpcRole, WeatherKind } from './types';
 import type { Speed } from './constants';
 
 export const WS_PATH = '/ws';
@@ -58,9 +58,6 @@ export interface WorldPayload {
 
 export type EntityState = 'idle' | 'walk' | 'work' | 'rest';
 
-/** What a person is doing right now; the renderer plays a matching animation while they stand still. */
-export type EntityAct = 'work' | 'farm' | 'gather' | 'eat' | 'chat' | 'rest' | 'pray' | 'sweep';
-
 export interface EntityView {
   id: number;
   name: string;
@@ -77,7 +74,8 @@ export interface EntityView {
   state: EntityState;
   look: Look;
   role?: NpcRole;
-  act?: EntityAct;
+  /** What they are doing while they stand still; the renderer plays a matching animation. */
+  act?: NpcAct;
 }
 
 /** What changes about an entity from one update to the next (the rest is sent once, in `view` or `add`). */
