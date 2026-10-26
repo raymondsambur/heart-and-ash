@@ -1,0 +1,17 @@
+# Backs up the Hearth and Ash database. Started by hearth-backup.timer; can also be run by hand: sudo systemctl start hearth-backup
+[Unit]
+Description=Back up the Hearth and Ash database
+
+[Service]
+Type=oneshot
+User=hearth
+Group=hearth
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning /opt/hearth-and-ash/deploy/backup.mjs
+Environment=DB_PATH=/var/lib/hearth/hearth.db
+Environment=BACKUP_DIR=/var/backups/hearth-nightly
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+# The database folder must be writable because SQLite keeps its lock file there even when only reading.
+ReadWritePaths=/var/lib/hearth /var/backups/hearth-nightly

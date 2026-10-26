@@ -1,0 +1,11 @@
+# Runs the database backup every night at 04:00 server time. Persistent: if the server was off at 04:00 it runs at next boot.
+# (The old game's backup runs at the same time on its own database; they do not interfere.)
+[Unit]
+Description=Nightly Hearth and Ash database backup
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
