@@ -93,19 +93,21 @@ The existing server and pipeline are reused: the `hearth-and-ash` service runs b
 
 ## Reuse map (from `murim-apocalypse-web`)
 
-| area | plan |
-|---|---|
-| `shared`: rng, noise, terrain types, pathfinding, world grid, ids | copy as is |
-| `shared`: world generation | adapt: a village-sized map, no settlements network |
-| `shared`: items, jobs, names data | copy and trim |
-| `client/art/*` (people, buildings, terrain, props, flora, beasts, sect props, item icons) | copy as is, then add construction stages |
-| `client/render/*` | copy, drop MMO-only parts, add construction and plot overlays |
-| `client/ui/*` shell, icons, tooltip, i18n | copy |
-| `client/ui/panels/*` | rewrite for the management UI |
-| `server`: auth, db, http, gateway skeleton, deploy scripts | copy and adapt |
-| `server`: npclife, npcmemory, dialogue | adapt ideas and some code: memory, rumors, talk composer |
-| `server`: sim (settlements, factions, economy, blight) | mine for ideas: economy goods, Blight spread, seasons; mostly rewrite |
-| `server`: combat, monsters, siege, missions, sects, masters, duels, friends | leave behind (raid and skirmish ideas return later as events) |
+Status after M0 (see `docs/notes/m0.md` for the exact file lists):
+
+| area | plan | status |
+|---|---|---|
+| `shared`: rng, noise, terrain types, pathfinding, world grid, ids | copy as is | **Done.** `rng`, `noise`, `pathfinding` are byte for byte the old files. `terrain` types and `worldgrid` are the old ones minus settlements, factions and nodes of the old world. The old game had no separate id helpers (the hash helpers live in `rng`). |
+| `shared`: world generation | adapt: a village-sized map, no settlements network | **Done.** `worldgen.ts` is new code on the old noise and stream ideas: 96 x 96, stream, stone outcrops, forest, Blight at the edges, a hand-placed starting village. |
+| `shared`: items, jobs, names data | copy and trim | **Names only.** `data/names.ts` is trimmed (person and village names). Items, jobs and skills are left for M3 (economy), because their tables carry the old combat and gear model. |
+| `client/art/*` (people, buildings, terrain, props, flora, beasts, sect props, item icons) | copy as is, then add construction stages | **Done except item icons** (`itemicons`, `itemkit`, `itemmisc`) and the sprite-pack importer (`imported`, `spriteimport`), which need the old item and skill data. Everything else is identical to the old files (two small edits: the actor-state and faction types). Construction stages come in M2; goods icons come in M3. |
+| `client/render/*` | copy, drop MMO-only parts, add construction and plot overlays | **Done, minus overlays.** Copied and adapted; combat effects, landmark beacons and the old-world minimap are removed. People now move on a sim clock (frozen on pause, 2x/4x faster). Plot overlays and construction come in M2. |
+| `client/ui/*` shell, icons, tooltip, i18n | copy | **Done** (trimmed to what the village game uses: DOM helpers, forms, icons, modal, tabs, toast, tooltip, i18n, auth screen, styles). |
+| `client/ui/panels/*` | rewrite for the management UI | **Not started** (the village card, clock and time controls are the first new HUD parts; panels come with M1 and later). |
+| `server`: auth, db, http, gateway skeleton, deploy scripts | copy and adapt | **Done.** New schema (users, sessions, villages with versioned snapshots), village host and tick loop instead of the old runtime. |
+| `server`: npclife, npcmemory, dialogue | adapt ideas and some code: memory, rumors, talk composer | **Not started** (M1). |
+| `server`: sim (settlements, factions, economy, blight) | mine for ideas: economy goods, Blight spread, seasons; mostly rewrite | **Seasons and weather done** (the old weather chain is reused for one climate). Economy, Blight spread and the rest come in M3. |
+| `server`: combat, monsters, siege, missions, sects, masters, duels, friends | leave behind (raid and skirmish ideas return later as events) | **Left behind.** |
 
 ## Risks
 
