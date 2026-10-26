@@ -1,7 +1,7 @@
 /**
  * Village-sized world generator (96 x 96 tiles), adapted from the old game's generator: the same height and moisture
  * noise, stream carving and object scatter, but one map instead of a continent, no settlement network and no roads between
- * towns. The starting village is hand-placed (see `placeVillage`) so every seed begins with the same recognisable layout;
+ * towns. The starting village is hand-placed (see `placeVillage`: five houses, a storehouse, a shrine, two fields and a well) so every seed begins with the same recognisable layout;
  * the seed changes the land around it: where the forest is thick, how the stream bends, where the stone lies and how far the Blight has crept in.
  */
 import { Rng } from './rng';
@@ -209,6 +209,8 @@ function placeVillage(c: Ctx): StartVillage {
     // South of the lane: the storehouse and a fifth house.
     house(5, 'warehouse', cx - 7, cy + 4, 4, 3, 'S'),
     house(6, 'house', cx + 3, cy + 4, 3, 3, 'S'),
+    // The shrine at the end of the southern lane (M1: people pray, mourn and marry there).
+    house(7, 'shrine', cx + 8, cy + 4, 2, 2, 'S'),
   ];
   for (const b of buildings) {
     for (let y = b.y; y < b.y + b.d; y++) {
@@ -221,7 +223,10 @@ function placeVillage(c: Ctx): StartVillage {
   }
 
   // The field north-west of the plaza, ploughed.
-  const plots: PlotDef[] = [{ id: 1, kind: 'field', x: cx - 11, y: cy - 12, w: 9, d: 6 }];
+  const plots: PlotDef[] = [
+    { id: 1, kind: 'field', x: cx - 11, y: cy - 12, w: 9, d: 6 },
+    { id: 2, kind: 'field', x: cx + 4, y: cy - 12, w: 9, d: 6 },
+  ];
   for (const p of plots) for (let y = p.y; y < p.y + p.d; y++) for (let x = p.x; x < p.x + p.w; x++) setTile(c, x, y, T.Farm);
 
   // A bridge where the main street meets the stream.
