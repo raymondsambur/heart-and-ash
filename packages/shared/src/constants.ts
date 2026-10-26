@@ -8,7 +8,7 @@ export const VILLAGE_H = 96;
 
 /** Calendar. */
 export const HOURS_PER_DAY = 24;
-export const DAYS_PER_SEASON = 30;
+export const DAYS_PER_SEASON = 24;
 export const DAYS_PER_YEAR = DAYS_PER_SEASON * 4;
 export const SEASONS = ['Spring', 'Summer', 'Autumn', 'Winter'] as const;
 export type SeasonName = (typeof SEASONS)[number];

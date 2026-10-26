@@ -1,6 +1,6 @@
 /**
  * Calendar math. Time is one number: game milliseconds since the village began (dawn of day 0).
- * 24 hours a day, 30 days a season, 120 days a year.
+ * 24 hours a day, 24 days a season, 96 days a year (docs/notes/balance-v0.md).
  */
 import { DAYS_PER_SEASON, DAYS_PER_YEAR, GAME_DAY_MS, GAME_HOUR_MS, HOURS_PER_DAY, START_HOUR } from '@hearth/shared';
 
