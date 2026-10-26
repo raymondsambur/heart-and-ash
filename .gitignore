@@ -1,0 +1,11 @@
+node_modules/
+dist/
+# Runtime data folders at the repo root only (never ignore source folders that happen to be called data).
+/data/
+/data_*/
+*.log
+.env
+.env.local
+.DS_Store
+.vite/
+coverage/
