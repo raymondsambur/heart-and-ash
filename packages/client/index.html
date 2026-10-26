@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#0a0908" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="description" content="Hearth and Ash - keep one village alive in the Murim Apocalypse world." />
+    <title>Hearth and Ash</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20width%3D%2264%22%20height%3D%2264%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2211%22%20fill%3D%22%23c8452d%22%2F%3E%3Crect%20x%3D%222.500%22%20y%3D%222.500%22%20width%3D%2259%22%20height%3D%2259%22%20rx%3D%229%22%20fill%3D%22none%22%20stroke%3D%22%23f7e6c8%22%20stroke-opacity%3D%220.35%22%2F%3E%3Cg%20transform%3D%22translate(8%208)%20scale(2)%22%20fill%3D%22none%22%20stroke%3D%22%23f7e6c8%22%20stroke-width%3D%221.500%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M2.4000000000000004%2012a9.6%209.6%200%201%200%2019.2%200a9.6%209.6%200%201%200%20-19.2%200z%22%2F%3E%3Cpath%20d%3D%22M12%204.200l1.800%203v7.800h-3.600V7.200z%22%2F%3E%3Cpath%20d%3D%22M8.200%2015.500h7.600%22%2F%3E%3Cpath%20d%3D%22M12%2015.500v4%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E" />
+  </head>
+  <body>
+    <!-- Ink-bleed filter that roughens the title lettering so it reads as brushwork. -->
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true" focusable="false">
+      <filter id="ink-rough" x="-5%" y="-10%" width="110%" height="120%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.035 0.06" numOctaves="2" seed="4" result="n" />
+        <feDisplacementMap in="SourceGraphic" in2="n" scale="3.2" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+    </svg>
+    <div id="app">
+      <noscript>Hearth and Ash needs JavaScript to run.</noscript>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
