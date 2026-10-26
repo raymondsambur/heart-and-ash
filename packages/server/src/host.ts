@@ -17,6 +17,8 @@ import {
   type C2S,
   type EntityUpdate,
   type EntityView,
+  type FeedEntry,
+  type PersonBrief,
   type S2C,
   type VillageView,
 } from '@hearth/shared';
@@ -30,6 +32,9 @@ import type { Logger } from './log';
 const MAX_STEPS_PER_TICK = 40;
 /** A connection that has not said hello within this long is closed. */
 const HELLO_TIMEOUT_MS = 5000;
+/** How often a watched villager's sheet is sent, and the villager list at most. */
+const SHEET_EVERY_MS = 1000;
+const ROSTER_EVERY_MS = 2000;
 
 export interface ClientConn {
   readonly id: number;
@@ -56,7 +61,11 @@ interface Running {
   lastSaveAt: number;
   /** Entity ids the connected client knows, and the JSON of the slow-changing parts it last received. */
   known: Set<number>;
-  sent: { buildings: string; plots: string; stock: string };
+  sent: { buildings: string; plots: string; stock: string; roster: string };
+  /** The villager whose sheet the client is watching, and when it was last sent (real ms). */
+  watch: number | null;
+  sheetAt: number;
+  rosterAt: number;
 }
 
 /** Handle the gateway keeps for one websocket. */
@@ -194,6 +203,14 @@ export class VillageHost {
       case 'ping':
         a.conn.send({ t: 'pong', n: msg.n });
         return;
+      case 'inspect': {
+        if (!a.ready) return void a.conn.send({ t: 'err', code: 'no_hello', text: 'Say hello first.' });
+        const r = this.running.get(a.user.id);
+        if (!r) return;
+        r.watch = msg.id;
+        this.sendSheet(r, this.now());
+        return;
+      }
       case 'speed': {
         if (!a.ready) return void a.conn.send({ t: 'err', code: 'no_hello', text: 'Say hello first.' });
         const r = this.running.get(a.user.id);
@@ -229,11 +246,15 @@ export class VillageHost {
       dirty: false,
       lastSaveAt: this.now(),
       known: new Set(),
-      sent: { buildings: '', plots: '', stock: '' },
+      sent: { buildings: '', plots: '', stock: '', roster: '' },
+      watch: null,
+      sheetAt: 0,
+      rosterAt: 0,
     };
     this.running.set(a.user.id, r);
     a.ready = true;
     a.conn.send({ t: 'welcome', v: PROTOCOL_VERSION, user: { id: a.user.id, username: a.user.username }, village: { name: village.name, seed: village.seed } });
+    sim.events();
     const view = sim.view();
     this.remember(r, view);
     a.conn.send({ t: 'view', view });
@@ -275,6 +296,7 @@ export class VillageHost {
     if (r.sinceView >= 1000 / VIEW_HZ - TICK_MS / 2) {
       r.sinceView = 0;
       this.sendUpdate(r);
+      if (r.watch !== null && t - r.sheetAt >= SHEET_EVERY_MS) this.sendSheet(r, t);
     }
     if (r.dirty && t - r.lastSaveAt >= this.config.autosaveMs) this.save(r, 'autosave');
   }
@@ -283,7 +305,8 @@ export class VillageHost {
 
   private remember(r: Running, view: VillageView): void {
     r.known = new Set(view.entities.map((e) => e.id));
-    r.sent = { buildings: JSON.stringify(view.buildings), plots: JSON.stringify(view.plots), stock: JSON.stringify(view.stock) };
+    r.sent = { buildings: JSON.stringify(view.buildings), plots: JSON.stringify(view.plots), stock: JSON.stringify(view.stock), roster: JSON.stringify(view.roster) };
+    r.rosterAt = this.now();
   }
 
   private sendUpdate(r: Running): void {
@@ -296,7 +319,7 @@ export class VillageHost {
     for (const e of v.entities) {
       seen.add(e.id);
       if (!r.known.has(e.id)) add.push(e);
-      ents.push({ id: e.id, x: e.x, y: e.y, nx: e.nx, ny: e.ny, step: e.step, route: e.route, face: e.face, state: e.state, act: e.act });
+      ents.push({ id: e.id, x: e.x, y: e.y, nx: e.nx, ny: e.ny, step: e.step, route: e.route, face: e.face, state: e.state, act: e.act, hidden: e.hidden });
     }
     const del = [...r.known].filter((id) => !seen.has(id));
     r.known = seen;
@@ -309,7 +332,25 @@ export class VillageHost {
     if (p !== r.sent.plots) (msg.plots = v.plots), (r.sent.plots = p);
     const s = JSON.stringify(v.stock);
     if (s !== r.sent.stock) (msg.stock = v.stock), (r.sent.stock = s);
+    const t = this.now();
+    if (t - r.rosterAt >= ROSTER_EVERY_MS) {
+      r.rosterAt = t;
+      const ro = JSON.stringify(v.roster);
+      if (ro !== r.sent.roster) (msg.roster = v.roster as PersonBrief[]), (r.sent.roster = ro);
+    }
     conn.send(msg);
+    const lines: FeedEntry[] = [];
+    for (const ev of r.sim.events()) if (ev.t === 'feed') lines.push({ ...ev.item });
+    if (lines.length) conn.send({ t: 'feed', items: lines });
+  }
+
+  private sendSheet(r: Running, t: number): void {
+    const conn = r.conn;
+    if (!conn || !conn.open || r.watch === null) return;
+    r.sheetAt = t;
+    const sheet = r.sim.sheet(r.watch);
+    conn.send({ t: 'sheet', sheet });
+    if (!sheet) r.watch = null;
   }
 
   // ---- persistence --------------------------------------------------------------------------------------
