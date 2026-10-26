@@ -39,4 +39,4 @@ export function seasonName(season: number): string {
 }
 
 /** Icon and label for the goods in the stockpile summary. Unknown goods fall back to a plain bag. */
-export const STOCK_ICON: Record<string, string> = { grain: 'grain', firewood: 'logs', timber: 'board', stone: 'ore', cloth: 'cloth' };
+export const STOCK_ICON: Record<string, string> = { ration: 'grain', wood: 'logs', planks: 'board', stone: 'ore', cloth: 'cloth', meal: 'grain' };

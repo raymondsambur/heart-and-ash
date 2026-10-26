@@ -22,6 +22,7 @@ export const BUILDING_ZK = 1.8;
 /** Size of special people relative to a normal adult (applied on top of `CHAR_K`). */
 export const SIZE_MULT = {
   normal: 1,
+  child: 0.78,
   elite1: 1.18,
   elite2: 1.25,
   hollow_brute: 1.3,

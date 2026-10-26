@@ -3,6 +3,9 @@
  * store and the renderer, and exposes the few things the UI may ask for (speed).
  */
 import type { C2S, NoteLevel, Speed, VillageView } from '@hearth/shared';
+
+/** The feed keeps this many lines on the client. */
+const FEED_KEEP = 120;
 import { toRenderEntity, toRenderPatch } from '../net/adapt';
 import type { ConnInfo, GameSocket } from '../net/socket';
 import type { GameViewApi } from '../render/api';
@@ -34,6 +37,20 @@ export class GameSession {
     this.send({ t: 'speed', speed });
   }
 
+  /** Select a villager (or nobody): highlights them in the world and asks the server for their sheet. */
+  select(id: number | null): void {
+    const { store, view } = this.o;
+    if (store.get('selected') === id) return;
+    store.patch({ selected: id, sheet: null, follow: false });
+    view.setSelected(id);
+    this.send({ t: 'inspect', id });
+  }
+
+  /** Keep the camera on the selected villager. */
+  setFollow(on: boolean): void {
+    this.o.store.set('follow', on && this.o.store.get('selected') !== null);
+  }
+
   private send(msg: C2S): boolean {
     const ok = this.o.socket.send(msg);
     if (!ok) this.o.onNotConnected();
@@ -55,7 +72,10 @@ export class GameSession {
         view.applyEntities({ add: v.entities.map(toRenderEntity) });
         view.setSpeed(v.speed);
         view.setTime(v.time);
-        store.patch({ time: v.time, speed: v.speed, population: v.population, stock: v.stock, buildings: v.buildings, plots: v.plots });
+        store.patch({ time: v.time, speed: v.speed, population: v.population, stock: v.stock, buildings: v.buildings, plots: v.plots, roster: v.roster, feed: v.feed.slice(-FEED_KEEP) });
+        // After a reconnect the server forgets whom we were watching.
+        const sel = store.get('selected');
+        if (sel !== null) this.send({ t: 'inspect', id: sel });
         if (!this.centered) {
           this.centered = true;
           const c = villageCentre(v);
@@ -73,7 +93,24 @@ export class GameSession {
         if (m.stock) patch.stock = m.stock;
         if (m.buildings) patch.buildings = m.buildings;
         if (m.plots) patch.plots = m.plots;
+        if (m.roster) patch.roster = m.roster;
         store.patch(patch);
+        const sel = store.get('selected');
+        if (sel !== null && store.get('follow')) {
+          const e = view.getEntity(sel);
+          if (e) view.centerOn(e.x, e.y);
+        }
+      }),
+
+      socket.on('feed', (m) => store.set('feed', [...store.get('feed'), ...m.items].slice(-FEED_KEEP))),
+
+      socket.on('sheet', (m) => {
+        if (m.sheet) store.set('sheet', m.sheet);
+        else if (store.get('selected') !== null) {
+          // They are gone (died or left the village).
+          store.patch({ selected: null, sheet: null, follow: false });
+          view.setSelected(null);
+        }
       }),
 
       socket.on('note', (m) => hooks.note(m.level, m.text)),

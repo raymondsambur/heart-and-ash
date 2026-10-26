@@ -42,6 +42,8 @@ function fakeView() {
     setSpeed: (s) => void calls.push(`speed:${s}`),
     setTime: () => void calls.push('time'),
     centerOn: (x, y) => void calls.push(`center:${Math.round(x)},${Math.round(y)}`),
+    setSelected: () => undefined,
+    getEntity: () => undefined,
   };
   return { api: api as GameViewApi, calls, entities };
 }
@@ -58,7 +60,9 @@ const village: VillageView = {
   ],
   buildings: [{ id: 1, kind: 'house', x: 10, y: 10, w: 2, d: 2, door: { x: 10, y: 12 } }],
   plots: [],
-  stock: { grain: 5 },
+  stock: { ration: 5 },
+  roster: [],
+  feed: [],
 };
 
 function setup() {
@@ -80,7 +84,7 @@ describe('GameSession', () => {
     ws.receive({ t: 'view', view: village });
     expect(store.get('village')?.name).toBe('Jade Ford');
     expect(store.get('population')).toBe(2);
-    expect(store.get('stock')).toEqual({ grain: 5 });
+    expect(store.get('stock')).toEqual({ ration: 5 });
     expect(v.calls).toEqual(['clear', 'buildings:1', 'plots:0', 'entities:+2/~0/-0', 'speed:1', 'time', 'center:11,11']);
     ws.receive({ t: 'view', view: village });
     expect(v.calls.filter((c) => c.startsWith('center')).length).toBe(1);
@@ -93,10 +97,30 @@ describe('GameSession', () => {
     expect(store.get('speed')).toBe(4);
     expect(store.get('population')).toBe(3);
     expect(store.get('time')?.hours).toBe(7);
-    expect(store.get('stock')).toEqual({ grain: 5 });
+    expect(store.get('stock')).toEqual({ ration: 5 });
     expect([...v.entities.keys()].sort()).toEqual([1, 3]);
-    ws.receive({ t: 'upd', time, speed: 4, population: 3, ents: [], stock: { grain: 4 } });
-    expect(store.get('stock')).toEqual({ grain: 4 });
+    ws.receive({ t: 'upd', time, speed: 4, population: 3, ents: [], stock: { ration: 4 } });
+    expect(store.get('stock')).toEqual({ ration: 4 });
+  });
+
+  it('selects a villager, asks for the sheet and clears the selection when they are gone', () => {
+    const { store, ws, session } = setup();
+    ws.receive({ t: 'view', view: village });
+    session.select(2);
+    expect(ws.sent.at(-1)).toEqual({ t: 'inspect', id: 2 });
+    expect(store.get('selected')).toBe(2);
+    ws.receive({ t: 'sheet', sheet: null });
+    expect(store.get('selected')).toBeNull();
+  });
+
+  it('keeps the feed and the roster the server sends', () => {
+    const { store, ws } = setup();
+    ws.receive({ t: 'view', view: { ...village, feed: [{ id: 1, day: 0, hour: 6, kind: 'arrive', text: 'A came.', people: [1] }] } });
+    ws.receive({ t: 'feed', items: [{ id: 2, day: 0, hour: 7, kind: 'birth', text: 'B was born.', people: [2] }] });
+    expect(store.get('feed').map((f) => f.id)).toEqual([1, 2]);
+    const brief = { id: 1, name: 'A', age: 30, sex: 0 as const, title: 'Farmer', doing: 'resting', mood: 70, lowest: { need: 'food' as const, v: 60 }, flags: [] };
+    ws.receive({ t: 'upd', time, speed: 1, population: 2, ents: [], roster: [brief] });
+    expect(store.get('roster')).toEqual([brief]);
   });
 
   it('asks the server for a speed and waits for the answer to show it', () => {

@@ -24,7 +24,7 @@ describe('i18n', () => {
   });
 
   it('has an English string for every literal key used in the UI source', () => {
-    const KEY = /['"`]((?:val|err|auth|conn|clock|weather|boot|game|common|season|time|village|stock|app)\.[A-Za-z0-9.]+)['"`]/g;
+    const KEY = /['"`]((?:val|err|auth|conn|clock|weather|boot|game|common|season|time|village|stock|app|people|sheet|feed)\.[A-Za-z0-9.]+)['"`]/g;
     const missing = new Set<string>();
     expect(Object.keys(SOURCES).length).toBeGreaterThan(15);
     for (const [file, text] of Object.entries(SOURCES)) {
@@ -38,7 +38,9 @@ describe('i18n', () => {
       weather: ['clear', 'cloudy', 'rain', 'storm', 'fog', 'snow'],
       clock: ['dawn', 'day', 'dusk', 'night'],
       season: ['spring', 'summer', 'autumn', 'winter'],
-      stock: ['grain', 'firewood', 'timber', 'stone', 'cloth'],
+      stock: ['ration', 'wood', 'planks', 'stone', 'cloth'],
+      'people.flag': ['ill', 'pregnant', 'stuck'],
+      'people.sort': ['mood', 'job', 'age', 'name'],
     };
     const missing: string[] = [];
     for (const [prefix, names] of Object.entries(families)) for (const n of names) if (!hasKey(`${prefix}.${n}`)) missing.push(`${prefix}.${n}`);

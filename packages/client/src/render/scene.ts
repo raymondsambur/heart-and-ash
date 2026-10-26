@@ -179,6 +179,7 @@ export class SceneRenderer {
     const sx1 = bw + 50;
     for (const e of this.ents.map.values()) {
       e.drawn = false;
+      if (e.v.hidden) continue;
       const art = (e.x - e.y) * 16 - ax0;
       const arty = (e.x + e.y) * 8 - ay0;
       if (art < sx0 - 40 || art > sx1 + 40 || arty < -40 || arty > bh + 160) continue;
@@ -552,8 +553,9 @@ export class SceneRenderer {
       spec.gaze = mirror ? -gz : gz;
       spec.tilt = pk.tilt;
       spec.blink = false;
+      spec.child = v.child === true;
       spr = this.bank.getChar(spec, e.lastSpr);
-      shadowR = Math.round(5 * sizeMult({ special, elite: v.elite ?? 0 }));
+      shadowR = Math.round(5 * sizeMult({ special, elite: v.elite ?? 0, child: v.child }));
       if (pk.state === 'dead' || pk.state === 'die') shadowR += 2;
       // footfalls and event effects
       const fk = pk.frame + 16 * (pk.state === 'walk' ? 1 : pk.state === 'run' ? 2 : pk.state === 'work' ? 3 : 0);
