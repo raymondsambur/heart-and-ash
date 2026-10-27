@@ -2,7 +2,7 @@
  * Living a step: the loop that runs every person every sim step. Needs tick, then the person walks, works, talks or decides.
  * Decisions happen when a plan runs out, when a need turns critical, or every ten game minutes (staggered by id).
  */
-import { ACTIONS, GAME_HOUR_MS, SLEEP_RECOVERY, traitMod, type Good } from '@hearth/shared';
+import { ACTIONS, BAL, GAME_HOUR_MS, SLEEP_RECOVERY, traitMod, type Good } from '@hearth/shared';
 import { HANDLERS, type Done } from './actions';
 import type { Ctx } from './ctx';
 import { HOUR, MIN } from './ctx';
@@ -56,7 +56,9 @@ export function tickPerson(c: Ctx, p: Person, dt: number): void {
   if (sleeping) p.needs.rest = clamp(p.needs.rest + SLEEP_RECOVERY * h);
   const fever = p.ills.some((i) => i.id === 'fever');
   if (fever) p.hp -= (age >= 60 ? 1.1 : age < 6 ? 0.8 : 0.4) * h;
-  if (p.hp <= 0) return void die(c, p, res.cause || (fever ? 'fever' : p.ills.some((i) => i.id === 'wound') ? 'wounds' : 'exhaustion'));
+  const plague = p.ills.some((i) => i.id === 'plague');
+  if (plague) p.hp -= BAL.director.plague.hpPerHour * (age >= 60 ? 1.3 : age < 6 ? 1.2 : 1) * h;
+  if (p.hp <= 0) return void die(c, p, res.cause || (plague ? 'plague' : fever ? 'fever' : p.ills.some((i) => i.id === 'wound') ? 'wounds' : 'exhaustion'));
 
   if (c.now >= (p.counters.moodAt ?? 0)) {
     p.mood = computeMood(p, c.now).mood;

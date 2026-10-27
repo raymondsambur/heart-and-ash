@@ -11,6 +11,8 @@ import { stop } from './move';
 import { clamp } from './needs';
 import { COMING_OF_AGE, MARRIAGE_AGE, ageOf, newPerson, TRADE_ROTA } from './people';
 import { emptiestHome } from './construct';
+import { blightReach, spoil } from './economy';
+import { harvestKeeps } from './director';
 import { addMood, bond, feedAbout, mem, relOf, stat } from './util';
 import { GROW_DAYS, TEND_HOURS, FIELD_YIELD } from './actions';
 import type { Person } from './types';
@@ -137,12 +139,12 @@ function giveBirth(c: Ctx, mother: Person): void {
   pushFeed(c.st, c.pending, 'birth', `${baby.name} was born to ${mother.name}${father ? ` and ${father.name}` : ''}.`, [baby.id, mother.id, ...(father ? [father.id] : [])]);
 }
 
-function arrive(c: Ctx, n: number): void {
+export function arrive(c: Ctx, n: number, ages: [number, number] = [17, 46], how: 'newcomer' | 'refugee' = 'newcomer'): void {
   const edge = c.sites.ofKind('edge')[0];
   if (!edge) return;
   const basic = c.sites.sites.filter((s) => s.kind === 'store' || s.kind === 'plaza' || s.kind === 'water' || s.kind === 'shrine' || s.kind === 'field').map((s) => s.id);
   for (let i = 0; i < n; i++) {
-    const age = c.rng.int(17, 46);
+    const age = c.rng.int(ages[0], ages[1]);
     const home = emptiestHome(c);
     const p = newPerson({ id: c.st.nextId++, rng: c.rng, age, day: c.day, home, x: edge.x, y: edge.y, known: basic, trade: TRADE_ROTA[c.rng.int(0, TRADE_ROTA.length - 1)] });
     p.counters.newcomer = c.day;
@@ -154,9 +156,9 @@ function arrive(c: Ctx, n: number): void {
     drawAmbitions(c, p);
     c.st.people.push(p);
     c.dirty();
-    c.st.pool--;
-    stat(c, 'arrivals');
-    pushFeed(c.st, c.pending, 'arrive', `${p.name} arrived from the Outside, looking for work and a roof.`, [p.id]);
+    if (how === 'newcomer') c.st.pool--;
+    stat(c, how === 'refugee' ? 'refugees' : 'arrivals');
+    pushFeed(c.st, c.pending, 'arrive', how === 'refugee' ? `${p.name} is one of the refugees who have taken shelter here.` : `${p.name} arrived from the Outside, looking for work and a roof.`, [p.id]);
   }
 }
 
@@ -171,16 +173,14 @@ export function dailyLife(c: Ctx): void {
     if (c.season < 3) f.grown++;
     if (f.grown >= GROW_DAYS) {
       const tendF = 0.6 + 0.4 * Math.min(1, f.tended / TEND_HOURS);
+      const bad = harvestKeeps(c);
       f.state = 'ripe';
-      f.left = Math.round(FIELD_YIELD * (0.6 + 0.1 * f.skill) * tendF * (1 - f.damage));
+      f.left = Math.round(FIELD_YIELD * (0.6 + 0.1 * f.skill) * tendF * (1 - f.damage) * bad.keeps);
       stat(c, 'harvest_ripe', f.left);
-      pushFeed(st, c.pending, 'farm', `A field is ripe: about ${f.left} rations are standing in it.`, []);
+      pushFeed(st, c.pending, bad.why ? 'harvest' : 'farm', bad.why ? `A poor harvest: ${bad.why}. About ${f.left} rations are standing in the field.` : `A field is ripe: about ${f.left} rations are standing in it.`, []);
     }
   }
-  // spoilage
-  st.stock.ration = (st.stock.ration ?? 0) * 0.996;
-  st.stock.meal = (st.stock.meal ?? 0) * 0.992;
-  st.stock.herb = (st.stock.herb ?? 0) * 0.99;
+  spoil(c);
 
   const people = [...st.people];
   for (const p of people) {
@@ -207,7 +207,7 @@ export function dailyLife(c: Ctx): void {
     }
     // illness: a fever now and then, more in winter and among the cold and hungry
     if (!p.ills.some((i) => i.id === 'fever')) {
-      let ch = 0.0015 + (c.season === 3 ? 0.004 : 0) + (p.needs.warmth < 30 ? 0.01 : 0) + (p.needs.food < 20 ? 0.006 : 0) + (age >= 60 ? 0.003 : 0);
+      let ch = 0.0015 + (c.season === 3 ? 0.004 : 0) + (p.needs.warmth < 30 ? 0.01 : 0) + (p.needs.food < 20 ? 0.006 : 0) + (age >= 60 ? 0.003 : 0) + blightReach(c) * 0.0004;
       if (age < 6) ch += 0.002;
       if (c.rng.chance(ch)) {
         p.ills.push({ id: 'fever', since: day });

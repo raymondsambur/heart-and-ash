@@ -65,6 +65,7 @@ const village: VillageView = {
   feed: [],
   orders: [],
   wishes: [],
+  status: { foodDays: 12, fuelDays: 20, rationing: 0, blight: 0, alert: null },
 };
 
 function setup() {

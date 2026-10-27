@@ -4,10 +4,11 @@
  * by skill, distance, priority and traits and claim one (see goals.ts). M2 adds build and demolish orders, M4 the manager's
  * priority sliders as multipliers per job type.
  */
-import { ACTIONS, STOCK_GOALS, type SkillId } from '@hearth/shared';
+import { ACTIONS, STOCK_GOALS, watchSlots, type SkillId } from '@hearth/shared';
 import { GROW_DAYS, TEND_HOURS, fieldName } from './actions';
 import { constructionJobs, outstanding } from './construct';
 import type { Ctx } from './ctx';
+import { woodGoal } from './economy';
 import type { Goal, Job } from './types';
 
 export interface Draft {
@@ -53,9 +54,13 @@ export function wanted(c: Ctx): Draft[] {
     out.push(draft('hunt:food', { kind: 'act', action: 'hunt', label: 'hunt in the forest' }, Math.max(2, need - 1), Math.min(2, slots), { skill: 'hunting', risky: true }));
   }
   // wood
-  const woodTarget = season === 3 ? 150 : season === 2 ? 600 : 400;
+  const wg = woodGoal(c);
   const wood = st.stock.wood ?? 0;
-  if (wood < woodTarget) out.push(draft('wood:stock', { kind: 'stock', good: 'wood', label: 'cut wood' }, wood < 100 ? 5 : season === 2 ? 4 : 3, Math.min(4, Math.max(1, Math.ceil((woodTarget - wood) / 120))), { skill: 'woodcraft' }));
+  if (wood < wg.target) out.push(draft('wood:stock', { kind: 'stock', good: 'wood', label: 'cut wood' }, wg.priority, Math.min(5, Math.max(1, Math.ceil((wg.target - wood) / 100))), { skill: 'woodcraft' }));
+  // the watch: posts keep people on duty, and a raid on its way fills them
+  const posts = st.buildings.filter((b) => b.kind === 'watchpost' && !b.con).length;
+  const slots = watchSlots(posts, !!st.dir.raid);
+  if (slots > 0) out.push(draft('watch:duty', { kind: 'act', action: 'stand_watch', label: 'stand watch' }, st.dir.raid ? 5 : 2, slots, { skill: 'fighting' }));
   // What the builders still need counts on top of the usual stock, so a house that waits for planks makes planks.
   const owed = outstanding(c);
   const stoneGoal = (STOCK_GOALS.stone ?? 100) + (owed.stone ?? 0);

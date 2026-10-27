@@ -61,6 +61,10 @@ This is where the "anyone can do anything" promise lives.
 
 `shared/data/blueprints.ts` is the blueprint table: per kind the footprint, the labour and the stages with the materials each needs; `canPlace` (shared with the client) says where a plot may go. An order (`st.orders`, `sim/construct.ts`) owns the work: it posts haul and build jobs to the job board, builders deliver material and add labour, stages advance in order, and the finished building takes its role (a home, a second store, a water site, a field). Demolition runs the stages backwards, returns part of the material and leaves rubble. The building or plot carries a small `con` (stage, % of the stage, material on the plot); the client draws from that alone (`art/construction.ts`). The map's own grid is never edited: a dynamic overlay records what now stands.
 
+### Economy and the events director (M3)
+
+`shared/data/balance.ts` holds every tuning number of the economy and the director in one object (`BAL`). `sim/economy.ts` is the village's use of its own stock: the hearths (once an evening every house with people in it burns wood from the store, six a winter day), spoilage (slower in winter and with a second storehouse, faster as the Blight's reach grows), rationing (a level the manager sets that shrinks the portion and what it gives) and the aims the standing jobs work towards (a winter of wood by autumn). `sim/director.ts` runs once a game day: the Blight's creep, bad harvests, plague, refugees, a travelling master and raids. A raid is announced a day ahead, a watch job opens, and on the day the village's defence (people by fighting skill, more for those on watch, plus finished watch posts and walls) is weighed against the raiders. The director keeps its own small state (`st.dir`) in the snapshot (version 4).
+
 ### The Outside
 
 An abstract place (or a few) with its own simple state (wealth, needs, mood towards the village). It produces traders, envoys, emigrants and newcomers, buys and sells in bulk, and receives villagers who leave. It is a data model and an events source, not a map.
@@ -77,7 +81,7 @@ An abstract place (or a few) with its own simple state (wealth, needs, mood towa
 ## Client (`packages/client`)
 
 - The isometric renderer and procedural art of the old game, adapted: terrain chunks, sprite bank, paper-doll people, the building rasteriser. Construction stage sprites with scaffolding, material piles and rubble, builder poses and carried loads, field ground that follows the plots (M2).
-- The UI shell (panels, tooltips, toasts, i18n) is reused. Villager sheet, build menu and order list (M2); still to come: village overview, rules and priorities, reports.
+- The UI shell (panels, tooltips, toasts, i18n) is reused. Villager sheet, build menu and order list (M2); the village card with days of food and fuel, the rations lever and the alert line (M3); still to come: rules and priorities, reports.
 - The client holds no game rules; it draws what the server sends.
 
 ## Deployment

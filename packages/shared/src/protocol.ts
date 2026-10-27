@@ -15,7 +15,7 @@ import type { Speed } from './constants';
 
 export const WS_PATH = '/ws';
 export const LOGOUT_PATH = '/api/logout';
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 // ---------------------------------------------------------------------------
 // HTTP API
@@ -233,6 +233,20 @@ export interface WishView {
   day: number;
 }
 
+/** How the village is doing for the things that kill it: food, fuel, the Blight and what is coming (M3). */
+export interface VillageStatus {
+  /** Days the store's food lasts at the present population and the present rationing. */
+  foodDays: number;
+  /** Days of winter heating the wood in the store would cover (99 when there is no need). */
+  fuelDays: number;
+  /** 0 normal, 1 tight, 2 strict. */
+  rationing: 0 | 1 | 2;
+  /** Tiles of Blight that reach the village once the shrines' ward is taken off. */
+  blight: number;
+  /** Something the manager should look at now: raiders are expected (`raid`) or sickness is in the village (`plague`). */
+  alert: 'raid' | 'plague' | null;
+}
+
 /** Everything the client draws from. The sim produces it; the server adds `step` conversion to real time. */
 export interface VillageView {
   time: TimeView;
@@ -248,6 +262,7 @@ export interface VillageView {
   /** Build and demolish orders in progress, oldest first. */
   orders: OrderView[];
   wishes: WishView[];
+  status: VillageStatus;
 }
 
 // ---------------------------------------------------------------------------
@@ -267,6 +282,8 @@ export type C2S =
   | { t: 'demolish'; building?: number; plot?: number }
   /** Cancel an order. Work that has begun is turned into a demolition. */
   | { t: 'cancel'; order: number }
+  /** How much of a portion each person is given: 0 normal, 1 tight, 2 strict. */
+  | { t: 'ration'; level: 0 | 1 | 2 }
   | { t: 'ping'; n: number };
 
 export type NoteLevel = 'info' | 'good' | 'warn' | 'bad';
@@ -290,6 +307,8 @@ export type S2C =
       buildings?: BuildingDef[];
       plots?: PlotDef[];
       stock?: StockSummary;
+      /** Food, fuel, rationing and alerts, when they changed. */
+      status?: VillageStatus;
       /** The villager list, when it changed (a few times a minute at most). */
       roster?: PersonBrief[];
       /** The order list and the wishes, when they changed. */

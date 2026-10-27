@@ -294,6 +294,9 @@ describe('sim: save and load', () => {
 describe('sim: golden run', () => {
   // A fingerprint of seed 1337 after four game days. It changes whenever the behaviour of the village changes on purpose:
   // when it does, check the new run looks right (npm run soak) and update the digest and the facts below together.
+  // M3: the facts moved (28 jobs, 92 meals, 74 chats before) because the hearths now burn the village's wood from the first evening, which
+  // sends more people to the woodpile in the first days; the snapshot also has three new fields (rationing, hearthDay, dir). The director's
+  // own random stream is forked, so it does not shift the village's.
   // M2: the facts are unchanged; the digest moved only because the snapshot is version 3 (orders and id counters), a stock job
   // for thatch, a longer ban-key format and one ambition's stuck text (diffed against the M1 snapshot of the same run).
   it('matches the recorded run', () => {
@@ -309,4 +312,4 @@ describe('sim: golden run', () => {
   });
 });
 
-const GOLDEN = { facts: { people: 12, day: 4, jobsDone: 28, meals: 92, chats: 74 }, digest: '9d76eb34:33007' };
+const GOLDEN = { facts: { people: 12, day: 4, jobsDone: 38, meals: 93, chats: 16 }, digest: 'e7c7e166:35873' };

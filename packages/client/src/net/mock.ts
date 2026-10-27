@@ -152,6 +152,13 @@ class MockSocket implements SocketLike {
       this.sendSheet();
       return;
     }
+    if (msg.t === 'ration' && this.sim) {
+      const res = this.sim.command({ t: 'ration', level: msg.level });
+      if (!res.ok) this.emit({ t: 'err', code: res.code, text: res.text });
+      else if (res.text) this.emit({ t: 'note', level: 'info', text: res.text });
+      this.update();
+      return;
+    }
     if ((msg.t === 'build' || msg.t === 'demolish' || msg.t === 'cancel') && this.sim) {
       const res = this.sim.command(msg.t === 'build' ? { t: 'build', kind: msg.kind, x: msg.x, y: msg.y, rot: msg.rot } : msg.t === 'demolish' ? { t: 'demolish', building: msg.building, plot: msg.plot } : { t: 'cancel', order: msg.order });
       if (!res.ok) this.emit({ t: 'err', code: res.code, text: res.text });
@@ -211,7 +218,7 @@ class MockSocket implements SocketLike {
     const od = JSON.stringify({ o: v.orders, w: v.wishes });
     const orders = od !== this.ordersJson;
     if (orders) this.ordersJson = od;
-    this.emit({ t: 'upd', time: v.time, speed: v.speed, population: v.population, ents, ...(add.length ? { add } : {}), ...(del.length ? { del } : {}), stock: v.stock, buildings: v.buildings, plots: v.plots, ...(roster ? { roster: v.roster } : {}), ...(orders ? { orders: v.orders, wishes: v.wishes } : {}) });
+    this.emit({ t: 'upd', time: v.time, speed: v.speed, population: v.population, ents, ...(add.length ? { add } : {}), ...(del.length ? { del } : {}), stock: v.stock, status: v.status, buildings: v.buildings, plots: v.plots, ...(roster ? { roster: v.roster } : {}), ...(orders ? { orders: v.orders, wishes: v.wishes } : {}) });
     const lines: FeedEntry[] = [];
     for (const ev of sim.events()) if (ev.t === 'feed') lines.push({ ...ev.item });
     if (lines.length) this.emit({ t: 'feed', items: lines });

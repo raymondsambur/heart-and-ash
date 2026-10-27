@@ -25,6 +25,8 @@ import { newField } from './actions';
 import { drawAmbitions, reviewAmbitions } from './ambitions';
 import { clockOf, dayOf } from './calendar';
 import { cancelOrder, computeOverlay, orderDemolish, orderViews, placeOrder, wishes } from './construct';
+import { directorDay, newDirector } from './director';
+import { lightHearths, statusOf } from './economy';
 import type { Ctx } from './ctx';
 import { tickPerson } from './exec';
 import { refreshJobs } from './jobs';
@@ -192,6 +194,9 @@ export function createSim(opts: CreateSimOptions): Sim {
       lastDay: 0,
       stats: {},
       pool: POOL,
+      rationing: 0,
+      hearthDay: -1,
+      dir: newDirector(rng.fork('director')),
     };
   }
 
@@ -246,6 +251,7 @@ export function createSim(opts: CreateSimOptions): Sim {
     }
     sync();
     dailyLife(c);
+    directorDay(c);
     for (const p of c.people) reviewAmbitions(c, p);
   }
 
@@ -256,6 +262,7 @@ export function createSim(opts: CreateSimOptions): Sim {
     const now = clockOf(st.totalMs);
     sync();
     if (now.day !== prev.day) newDay(now.day, prev.season, now.season, now.year);
+    lightHearths(c);
     if (st.jobsAt < 0 || st.totalMs - st.jobsAt >= GAME_HOUR_MS) {
       st.jobsAt = st.totalMs;
       refreshJobs(c);
@@ -276,6 +283,11 @@ export function createSim(opts: CreateSimOptions): Sim {
     },
 
     command(cmd: SimCommand): CommandResult {
+      if (cmd.t === 'ration') {
+        if (cmd.level !== 0 && cmd.level !== 1 && cmd.level !== 2) return { ok: false, code: 'bad_ration', text: 'Unknown rationing level.' };
+        st.rationing = cmd.level;
+        return { ok: true, text: cmd.level === 0 ? 'Full portions again.' : cmd.level === 1 ? 'Rations are tight.' : 'Strict rations.' };
+      }
       if (cmd.t === 'speed') {
         if (!SPEEDS.includes(cmd.speed)) return { ok: false, code: 'bad_speed', text: 'Unknown speed.' };
         st.speed = cmd.speed as Speed;
@@ -322,6 +334,7 @@ export function createSim(opts: CreateSimOptions): Sim {
         feed: st.feed.slice(-FEED_IN_VIEW).map((f) => ({ ...f, people: f.people.slice() })),
         orders: orderViews(c),
         wishes: wishes(c),
+        status: statusOf(c),
       };
     },
 

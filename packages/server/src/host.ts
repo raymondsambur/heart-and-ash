@@ -63,7 +63,7 @@ interface Running {
   lastSaveAt: number;
   /** Entity ids the connected client knows, and the JSON of the slow-changing parts it last received. */
   known: Set<number>;
-  sent: { buildings: string; plots: string; stock: string; roster: string; orders: string };
+  sent: { buildings: string; plots: string; stock: string; roster: string; orders: string; status: string };
   /** The villager whose sheet the client is watching, and when it was last sent (real ms). */
   watch: number | null;
   sheetAt: number;
@@ -213,6 +213,17 @@ export class VillageHost {
         this.sendSheet(r, this.now());
         return;
       }
+      case 'ration': {
+        if (!a.ready) return void a.conn.send({ t: 'err', code: 'no_hello', text: 'Say hello first.' });
+        const r = this.running.get(a.user.id);
+        if (!r) return;
+        const res = r.sim.command({ t: 'ration', level: msg.level });
+        if (!res.ok) return void a.conn.send({ t: 'err', code: res.code, text: res.text });
+        if (res.text) a.conn.send({ t: 'note', level: 'info', text: res.text });
+        r.dirty = true;
+        this.sendUpdate(r);
+        return;
+      }
       case 'build':
       case 'demolish':
       case 'cancel': {
@@ -261,7 +272,7 @@ export class VillageHost {
       dirty: false,
       lastSaveAt: this.now(),
       known: new Set(),
-      sent: { buildings: '', plots: '', stock: '', roster: '', orders: '' },
+      sent: { buildings: '', plots: '', stock: '', roster: '', orders: '', status: '' },
       watch: null,
       sheetAt: 0,
       rosterAt: 0,
@@ -320,7 +331,7 @@ export class VillageHost {
 
   private remember(r: Running, view: VillageView): void {
     r.known = new Set(view.entities.map((e) => e.id));
-    r.sent = { buildings: JSON.stringify(view.buildings), plots: JSON.stringify(view.plots), stock: JSON.stringify(view.stock), roster: JSON.stringify(view.roster), orders: JSON.stringify({ o: view.orders, w: view.wishes }) };
+    r.sent = { buildings: JSON.stringify(view.buildings), plots: JSON.stringify(view.plots), stock: JSON.stringify(view.stock), roster: JSON.stringify(view.roster), orders: JSON.stringify({ o: view.orders, w: view.wishes }), status: JSON.stringify(view.status) };
     r.rosterAt = this.now();
   }
 
@@ -353,6 +364,8 @@ export class VillageHost {
     }
     const s = JSON.stringify(v.stock);
     if (s !== r.sent.stock) (msg.stock = v.stock), (r.sent.stock = s);
+    const stat = JSON.stringify(v.status);
+    if (stat !== r.sent.status) (msg.status = v.status), (r.sent.status = stat);
     const t = this.now();
     if (t - r.rosterAt >= ROSTER_EVERY_MS) {
       r.rosterAt = t;

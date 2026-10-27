@@ -2,11 +2,13 @@ import { GOODS, Rng, SPEEDS, generateWorld, type BuildingDef, type Good, type Pl
 import { newField } from './actions';
 import { drawTraits, startingSkills, TRADE_ROTA } from './people';
 import { SiteIndex } from './sites';
-import type { Field, FeedItem, Grave, Job, Order, Person, SimState } from './types';
+import { dayOf } from './calendar';
+import { ensureDirector } from './director';
+import type { DirectorState, Field, FeedItem, Grave, Job, Order, Person, SimState } from './types';
 import { WEATHER_KINDS } from './weather';
 
 /** Bump when the shape of the saved state changes, and add a step to `MIGRATIONS`. */
-export const SNAPSHOT_VERSION = 3;
+export const SNAPSHOT_VERSION = 4;
 
 export interface SimSnapshot {
   v: number;
@@ -38,6 +40,9 @@ export interface SimSnapshot {
   lastDay: number;
   stats: Record<string, number>;
   pool: number;
+  rationing: 0 | 1 | 2;
+  hearthDay: number;
+  dir: DirectorState;
 }
 
 export class SnapshotError extends Error {}
@@ -90,6 +95,9 @@ const MIGRATIONS: Record<number, (s: Raw) => Raw> = {
     const maxOf = (list: unknown): number => (Array.isArray(list) ? list.reduce<number>((m, x) => Math.max(m, typeof (x as { id?: unknown })?.id === 'number' ? (x as { id: number }).id : 0), 0) : 0);
     return { ...s, v: 3, orders: [], nextOrderId: 1, nextBuildingId: maxOf(s.buildings) + 1, nextPlotId: maxOf(s.plots) + 1 };
   },
+  // v3 (M2) to v4 (M3): rationing, the hearths and the events director. An old village starts with a fresh director whose first
+  // raid is a few weeks away from the day it is loaded (the director fills in `nextRaid` when it first runs).
+  3: (s) => ({ ...s, v: 4, rationing: 0, hearthDay: -1, dir: null }),
 };
 
 /** The parts of a person the M0 villager did not have. */
@@ -171,6 +179,9 @@ export function serializeState(st: SimState, rng: Rng): SimSnapshot {
       lastDay: st.lastDay,
       stats: st.stats,
       pool: st.pool,
+      rationing: st.rationing,
+      hearthDay: st.hearthDay,
+      dir: st.dir,
     }),
   ) as SimSnapshot;
 }
@@ -248,5 +259,8 @@ export function restoreState(saved: unknown, rng: Rng): SimState {
     lastDay: num(s, 'lastDay'),
     stats: clone(obj(s, 'stats')),
     pool: num(s, 'pool'),
+    rationing: s.rationing === 1 || s.rationing === 2 ? s.rationing : 0,
+    hearthDay: typeof s.hearthDay === 'number' ? s.hearthDay : -1,
+    dir: ensureDirector(typeof s.dir === 'object' && s.dir !== null ? clone<DirectorState>(s.dir) : undefined, rng, dayOf(num(s, 'totalMs'))),
   };
 }

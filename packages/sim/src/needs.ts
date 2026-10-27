@@ -1,5 +1,5 @@
 /** Needs and mood (docs/notes/m1-agent-brain-spec.md, section 3). */
-import { GAME_HOUR_MS, NEEDS, NEED_IDS, TRAITS, traitMod, type NeedId, type WeatherKind } from '@hearth/shared';
+import { BAL, GAME_HOUR_MS, NEEDS, NEED_IDS, TRAITS, traitMod, type NeedId, type WeatherKind } from '@hearth/shared';
 import { ageOf, COMING_OF_AGE } from './people';
 import type { Person } from './types';
 
@@ -47,7 +47,7 @@ export function tickNeeds(p: Person, dt: number, day: number, temp: number, stat
   // warmth
   const cold = Math.max(0, 8 - temp) * 0.5;
   if (state.indoors && state.fire) n.warmth = clamp(n.warmth + 15 * h);
-  else if (state.indoors) n.warmth = clamp(n.warmth + (cold > 0 ? -cold * 0.35 * (p.inv.clothes > 0 ? 0.5 : 1) : 4) * h);
+  else if (state.indoors) n.warmth = clamp(n.warmth + (cold > 0 ? -cold * BAL.winter.indoorCold * (p.inv.clothes > 0 ? 0.5 : 1) : 4) * h);
   else n.warmth = clamp(n.warmth + (cold > 0 ? -cold * (p.inv.clothes > 0 ? 0.5 : 1) : 5) * h);
   // safety recovers indoors and among other people
   if (n.safety < 100) n.safety = clamp(n.safety + (state.indoors || state.company > 0 ? 3 : 0.5) * h);
