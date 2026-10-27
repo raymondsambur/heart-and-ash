@@ -1,6 +1,7 @@
 /** Walking: paths over the shared grid, one tile at a time, as in M0 (the view reports the step in progress and the tiles after it). */
 import { STEP_MS, TERRAIN_INFO, findPath, tileSpeed, type Dir, type Point } from '@hearth/shared';
 import type { Ctx } from './ctx';
+import { walked } from './roads';
 import type { Person } from './types';
 
 export function faceOf(dx: number, dy: number, keep: Dir): Dir {
@@ -53,6 +54,7 @@ export function advanceMove(c: Ctx, p: Person, dt: number): boolean {
   p.y = p.ny;
   p.stepMs = 0;
   p.stepLeft = 0;
+  walked(c, p.x, p.y);
   if (p.path.length > 0) beginStep(c, p);
   return true;
 }

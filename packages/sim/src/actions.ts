@@ -2,8 +2,9 @@
  * What happens when an action ends: the handlers of the action library (the table is in `shared/data/actions.ts`).
  * Plain effects (a need rising, a good appearing in the hands) are here; the social and conflict acts are in `social.ts`.
  */
-import { ACTIONS, BAL, COOKED_MEAL_POINTS, GAME_HOUR_MS, MEAL_PORTION, RAW_MEAL_POINTS, skillSpeed, traitMod, type Good } from '@hearth/shared';
+import { ACTIONS, BAL, COOKED_MEAL_POINTS, GAME_HOUR_MS, MEAL_PORTION, O, RAW_MEAL_POINTS, skillSpeed, traitMod, type Good } from '@hearth/shared';
 import { blightReach, rationOf } from './economy';
+import { chopTree, pickPlant } from './flora';
 import { addWork, deliver } from './construct';
 import { leave } from './life';
 import type { Ctx } from './ctx';
@@ -84,6 +85,17 @@ function buildWork(d: Done): void {
   const units = def.minutes / 60 / skillSpeed(4);
   const worked = addWork(d.c, d.p, d.step.order, units);
   if (worked && d.step.a !== 'clear_rubble') xp(d, 'building', 5);
+}
+
+/** The object at the place the act was done (0 for bare ground). */
+function atObject(d: Done): number {
+  if (d.step.ox === undefined || d.step.oy === undefined) return O.None;
+  return d.c.world.objects[d.step.oy * d.c.world.w + d.step.ox];
+}
+
+/** What was picked is gone from the bush for a while. */
+function pick(d: Done): void {
+  if (d.step.ox !== undefined && d.step.oy !== undefined && pickPlant(d.c, { x: d.step.ox, y: d.step.oy })) stat(d.c, 'plants_picked');
 }
 
 /** Spoken for by the social code. */
@@ -174,7 +186,11 @@ export const HANDLERS: Record<string, Handler> = {
   },
   forage(d) {
     const season = d.c.season === 2 ? 0.8 : 1;
-    gather(d, 'ration', 0.4 * season * Math.max(0.4, 1 - 0.06 * blightReach(d.c)));
+    // A bush gives the most; flowers a little less; bare grass gives greens and roots.
+    const at = atObject(d);
+    const kind = at === O.Bush ? 1.3 : at === O.Flowers ? 1 : 0.6;
+    gather(d, 'ration', 0.4 * season * kind * Math.max(0.4, 1 - 0.06 * blightReach(d.c)));
+    pick(d);
   },
   // ---- construction (M2): the work is in construct.ts ------------------------------------------------------------
   deliver_material(d) {
@@ -193,7 +209,8 @@ export const HANDLERS: Record<string, Handler> = {
     gather(d, 'thatch', 1.2);
   },
   gather_herbs(d) {
-    gather(d, 'herb', 0.5);
+    gather(d, 'herb', atObject(d) === O.None ? 0.35 : 0.5);
+    pick(d);
   },
   hunt(d) {
     gather(d, 'ration', 0.9 * (d.c.season === 3 ? BAL.winter.huntFactor : 1));
@@ -206,6 +223,7 @@ export const HANDLERS: Record<string, Handler> = {
   },
   chop_wood(d) {
     gather(d, 'wood', 1.75);
+    if (d.step.ox !== undefined && d.step.oy !== undefined && chopTree(d.c, { x: d.step.ox, y: d.step.oy })) stat(d.c, 'trees_felled');
   },
   saw_planks(d) {
     const c = d.p.carrying;

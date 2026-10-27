@@ -30,6 +30,9 @@ import { clockOf, dayOf } from './calendar';
 import { cancelOrder, computeOverlay, orderDemolish, orderViews, placeOrder, wishes } from './construct';
 import { directorDay, newDirector } from './director';
 import { answerOffer, expireOffers } from './offers';
+import { applyFlora, floraDay, floraView } from './flora';
+import { wallState } from './walls';
+import { applyGround, groundView, roadsDay } from './roads';
 import { newOutside, outsideDay, outsideView } from './outside';
 import { deleteRule, defaultPriorities, runRules, setPriority, setRule } from './policy';
 import { awayReport, baseOf, dayReport, emptyBase, markRead, seasonReport } from './reports';
@@ -109,17 +112,22 @@ export function createSim(opts: CreateSimOptions): Sim {
       return baseGrid.cost(x, y);
     },
   };
+  const baseTerrain = world.terrain.slice();
   const rng = new Rng(opts.seed ^ 0x51a7e);
   const pending: SimEvent[] = [];
   let st: SimState;
 
   if (opts.saved) {
     if (opts.saved.seed !== opts.seed) throw new Error(`snapshot is for seed ${opts.saved.seed}, not ${opts.seed}`);
-    st = restoreState(opts.saved, rng);
+    st = restoreState(opts.saved, rng, world.w * world.h);
   } else {
     st = emptyState(opts.seed);
   }
+  // The sites (where the forest and the meadows are) come from the map as it was made, so a loaded village and one that never stopped agree;
+  // only then does the ground the village has changed (trees cut, bushes picked) go back onto the map.
   const sites = new SiteIndex(world, st.buildings, st.plots, st.orders);
+  applyFlora(world.objects, st.flora);
+  applyGround(world.terrain, st.ground);
   computeOverlay(world, st.buildings, over);
 
   // ---- the shared context, refreshed once per step ----
@@ -145,6 +153,7 @@ export function createSim(opts: CreateSimOptions): Sim {
     temp: 10,
     weather: 'clear',
     over,
+    baseTerrain,
     open(x, y) {
       if (x < 0 || y < 0 || x >= world.w || y >= world.h) return false;
       const o = over[y * world.w + x];
@@ -223,6 +232,12 @@ export function createSim(opts: CreateSimOptions): Sim {
       tier: 0,
       peak: 0,
       outside: newOutside(rng.fork('outside')),
+      flora: [],
+      chops: {},
+      ring: null,
+      ground: {},
+      traffic: new Float32Array(world.w * world.h),
+      quiet: new Uint8Array(world.w * world.h),
     };
   }
 
@@ -285,6 +300,8 @@ export function createSim(opts: CreateSimOptions): Sim {
     dailyLife(c);
     directorDay(c);
     outsideDay(c);
+    floraDay(c);
+    roadsDay(c);
     expireOffers(c);
     checkCrisis();
     for (const p of c.people) reviewAmbitions(c, p);
@@ -404,8 +421,12 @@ export function createSim(opts: CreateSimOptions): Sim {
           away: st.away !== null,
           crisis: st.crisis,
           maxRules: Math.min(MAX_RULES, BAL.tiers.maxRules[st.tier]),
+          ring: st.ring ? { ...st.ring } : null,
+          wall: wallState(c),
         },
         outside: outsideView(c),
+        flora: floraView(st.flora),
+        ground: groundView(st.ground),
         reports: st.reports.map((r) => ({ ...r, lines: r.lines.map((l) => ({ ...l })) })),
       };
     },

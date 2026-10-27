@@ -23,7 +23,7 @@ import {
   type RuleDef,
   type RuleMetric,
 } from '@hearth/shared';
-import { placeOrder } from './construct';
+import { approachOf, placeOrder } from './construct';
 import type { Ctx } from './ctx';
 import { foodDaysOf, fuelDaysOf } from './economy';
 import { pushFeed } from './feed';
@@ -75,8 +75,9 @@ export function metricOf(c: Ctx, m: RuleMetric): number {
       return st.plots.filter((p) => p.kind === 'field' && !p.con).length;
     case 'shrines':
     case 'watchposts':
-    case 'walls': {
-      const kind = m === 'shrines' ? 'shrine' : m === 'watchposts' ? 'watchpost' : 'wall';
+    case 'walls':
+    case 'gates': {
+      const kind = m === 'shrines' ? 'shrine' : m === 'watchposts' ? 'watchpost' : m === 'gates' ? 'gateway' : 'wall';
       return st.buildings.filter((b) => b.kind === kind && !b.con).length;
     }
     case 'wood':
@@ -114,15 +115,9 @@ export function describeRule(r: RuleDef): string {
   return `if ${METRIC_LABEL[r.cond.metric]} ${r.cond.op} ${r.cond.value}, ${describeAct(r.act)}`;
 }
 
-/** Where raiders and strangers come from: the far end of the main street. */
-function approachOf(c: Ctx): { x: number; y: number } | null {
-  const e = c.sites.ofKind('edge')[0];
-  return e ? { x: e.x, y: e.y } : null;
-}
-
 /** The best place for a kind of building (see `shared/data/placement.ts`), or null when there is no room. */
 export function autoSpot(c: Ctx, kind: BuildKind): { x: number; y: number; rot: boolean } | null {
-  const best = placementsFor({ world: c.world, buildings: c.st.buildings, plots: c.st.plots }, kind, { approach: approachOf(c) }, 1)[0];
+  const best = placementsFor({ world: c.world, buildings: c.st.buildings, plots: c.st.plots }, kind, { approach: approachOf(c), ring: c.st.ring }, 1)[0];
   return best ? { x: best.x, y: best.y, rot: best.rot } : null;
 }
 
@@ -141,15 +136,19 @@ function apply(c: Ctx, r: Rule): boolean {
     return true;
   }
   // build: one at a time, and not more often than every few days
-  if (c.day - r.last < BUILD_RULE_COOLDOWN) return false;
-  if (c.st.orders.some((o) => o.kind === act.kind && o.mode === 'build')) return false;
+  // A wall goes up a piece at a time, so it may have a few orders in hand and a short pause; everything else is slower.
+  const wall = act.kind === 'wall' || act.kind === 'gate';
+  if (c.day - r.last < (wall ? 1 : BUILD_RULE_COOLDOWN)) return false;
+  if (c.st.orders.filter((o) => o.kind === act.kind && o.mode === 'build').length >= (act.kind === 'wall' ? 3 : 1)) return false;
   // The best places first; one the builders could not reach from the green is dropped and the next tried.
-  const spots = placementsFor({ world: c.world, buildings: c.st.buildings, plots: c.st.plots }, act.kind, { approach: approachOf(c) }, 6);
+  const spots = placementsFor({ world: c.world, buildings: c.st.buildings, plots: c.st.plots }, act.kind, { approach: approachOf(c), ring: c.st.ring }, 6);
   for (const spot of spots) {
     if (!placeOrder(c, act.kind, spot.x, spot.y, spot.rot, null).ok) continue;
     r.last = c.day;
     return true;
   }
+  // nothing could be raised: wait before trying again, so a blocked spot is not tried every hour
+  r.last = c.day;
   return false;
 }
 

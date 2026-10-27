@@ -8,9 +8,9 @@
  */
 import type { Good } from './goods';
 import { skillSpeed } from './skills';
-import { O, T, type BuildingDef, type BuildingKind, type PlotDef, type WorldData } from '../terrain';
+import { O, T, TERRAIN_INFO, objectBlocks, type BuildingDef, type BuildingKind, type PlotDef, type WorldData } from '../terrain';
 
-export const BUILD_KINDS = ['house', 'field', 'well', 'warehouse', 'workshop', 'shrine', 'watchpost', 'wall'] as const;
+export const BUILD_KINDS = ['house', 'field', 'well', 'warehouse', 'workshop', 'shrine', 'watchpost', 'wall', 'gate'] as const;
 export type BuildKind = (typeof BUILD_KINDS)[number];
 
 /** `cleared`: the ground is dug and staked; `ploughed` is the last stage of a field. */
@@ -115,14 +115,28 @@ export const BLUEPRINTS: Record<BuildKind, Blueprint> = {
     kind: 'wall',
     art: 'wall',
     label: 'Wall segment',
-    blurb: 'Four tiles of stone wall. People cannot walk through it.',
+    blurb: 'Four tiles of stone wall. People cannot walk through it. Walls join end to end and close into a loop around the village.',
     w: 4,
     d: 1,
     rotates: true,
     labour: 60,
     stages: [st('cleared', 0.1), st('foundation', 0.3, { stone: 8 }), st('walls', 0.4, { stone: 8 }), st('roof', 0.2, { planks: 8 })],
   },
+  gate: {
+    kind: 'gate',
+    art: 'gateway',
+    label: 'Gate',
+    blurb: 'The one way through the wall: four tiles wide, open to walk through. A wall has a single gate.',
+    w: 4,
+    d: 1,
+    rotates: true,
+    labour: 80,
+    stages: [st('cleared', 0.1), st('foundation', 0.25, { stone: 10 }), st('walls', 0.35, { stone: 10, planks: 6 }), st('roof', 0.3, { planks: 12 })],
+  },
 };
+
+/** The building kinds (art) that make up the village wall. */
+export const WALL_ARTS: ReadonlySet<string> = new Set(['wall', 'gateway']);
 
 /** What a stage looks like in words ("laying the foundation"). */
 export const STAGE_TEXT: Record<StageId, string> = {
@@ -206,8 +220,35 @@ export type PlaceCheck = { ok: true; w: number; d: number; door: { x: number; y:
 
 export interface PlaceWorld {
   world: Pick<WorldData, 'w' | 'h' | 'terrain' | 'objects' | 'blight'> & { start: Pick<WorldData['start'], 'center'> };
-  buildings: readonly Pick<BuildingDef, 'x' | 'y' | 'w' | 'd' | 'door'>[];
+  buildings: readonly (Pick<BuildingDef, 'x' | 'y' | 'w' | 'd' | 'door'> & { kind?: string })[];
   plots: readonly Pick<PlotDef, 'x' | 'y' | 'w' | 'd'>[];
+}
+
+/** The tile beside a wall piece, on the side towards the green, where builders stand (the sides of a wall are all open ground). */
+function wallDoor(pw: PlaceWorld, x: number, y: number, w: number, d: number): { x: number; y: number } {
+  const c = pw.world.start.center;
+  let best = { x, y: y + d };
+  let bd = Infinity;
+  const consider = (tx: number, ty: number): void => {
+    // builders must be able to stand there: open ground, nothing built on it
+    if (tx < 0 || ty < 0 || tx >= pw.world.w || ty >= pw.world.h) return;
+    const i = ty * pw.world.w + tx;
+    if (!TERRAIN_INFO[pw.world.terrain[i]].passable || objectBlocks(pw.world.objects[i]) || pw.buildings.some((b) => inRect(b, tx, ty))) return;
+    const dd = Math.abs(tx - c.x) + Math.abs(ty - c.y);
+    if (dd < bd) {
+      bd = dd;
+      best = { x: tx, y: ty };
+    }
+  };
+  for (let tx = x; tx < x + w; tx++) {
+    consider(tx, y - 1);
+    consider(tx, y + d);
+  }
+  for (let ty = y; ty < y + d; ty++) {
+    consider(x - 1, ty);
+    consider(x + w, ty);
+  }
+  return best;
 }
 
 const inRect = (r: { x: number; y: number; w: number; d: number }, x: number, y: number): boolean => x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.d;
@@ -220,12 +261,16 @@ const inRect = (r: { x: number; y: number; w: number; d: number }, x: number, y:
 export function canPlace(pw: PlaceWorld, kind: BuildKind, x: number, y: number, rot = false): PlaceCheck {
   const { world, buildings, plots } = pw;
   const { w, d } = footprintOf(kind, rot);
-  const door = doorTile(x, y, w, d);
+  const isWallKind = kind === 'wall' || kind === 'gate';
+  const door = isWallKind ? wallDoor(pw, x, y, w, d) : doorTile(x, y, w, d);
   const covered = (tx: number, ty: number): boolean => buildings.some((b) => inRect(b, tx, ty)) || plots.some((p) => inRect(p, tx, ty));
   // An object that is a building tile of the starting village no longer counts once nothing stands there.
   const objectFree = (tx: number, ty: number): boolean => {
     const o = world.objects[ty * world.w + tx];
-    return o === O.None || (o === O.Building && !buildings.some((b) => inRect(b, tx, ty)));
+    // A stump, a sapling or a picked bush is cleared away when something is built there.
+    if (o === O.None || o === O.Stump || o === O.Sapling || o === O.BareBush || (o === O.Building && !buildings.some((b) => inRect(b, tx, ty)))) return true;
+    // A wall is run through trees and brush: they are cleared where it goes.
+    return isWallKind && (o === O.Pine || o === O.Oak || o === O.Bamboo || o === O.Bush || o === O.Flowers || o === O.Reeds);
   };
   const c = world.start.center;
   for (let ty = y; ty < y + d; ty++) {
@@ -237,9 +282,11 @@ export function canPlace(pw: PlaceWorld, kind: BuildKind, x: number, y: number, 
       if (!objectFree(tx, ty)) return { ok: false, reason: 'Something is in the way (a tree, a rock or a building).' };
       if (world.blight[i] > BUILD_BLIGHT_LIMIT) return { ok: false, reason: 'The Blight lies too thick here.' };
       if (covered(tx, ty)) return { ok: false, reason: 'Another building or field is already here.' };
-      if (buildings.some((b) => b.door.x === tx && b.door.y === ty)) return { ok: false, reason: 'It would block a doorway.' };
+      if (buildings.some((b) => b.door.x === tx && b.door.y === ty && !(b.kind !== undefined && WALL_ARTS.has(b.kind)))) return { ok: false, reason: 'It would block a doorway.' };
     }
   }
+  // A wall piece has no front door: builders stand beside it, and where it may go in a loop is decided by `walls.ts`.
+  if (isWallKind) return { ok: true, w, d, door };
   // The way in: the tile in front must be open ground that nothing covers.
   if (door.x < 1 || door.y < 1 || door.x >= world.w - 1 || door.y >= world.h - 1) return { ok: false, reason: 'No room in front for the door.' };
   const di = door.y * world.w + door.x;

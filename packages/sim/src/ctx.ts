@@ -24,6 +24,8 @@ export interface Ctx {
   dirty(): void;
   /** Tiles the village has built on or cleared since the map was made: 1 blocked, 2 open (a starting building that is gone), 0 as the map says. */
   over: Uint8Array;
+  /** The terrain as the map was made, before any road was worn or grown over. */
+  baseTerrain: Uint8Array;
   /** Can people walk on this tile? The map, with what has been built or taken down. */
   open(x: number, y: number): boolean;
 }

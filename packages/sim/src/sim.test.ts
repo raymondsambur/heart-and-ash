@@ -294,6 +294,8 @@ describe('sim: save and load', () => {
 describe('sim: golden run', () => {
   // A fingerprint of seed 1337 after four game days. It changes whenever the behaviour of the village changes on purpose:
   // when it does, check the new run looks right (npm run soak) and update the digest and the facts below together.
+  // M6: the facts moved a little (37 jobs, 94 meals, 35 chats before): woodcutters and foragers now walk to a real tree or bush, and the snapshot
+  // is version 7 (the living ground, the roads).
   // M5: the facts moved a little (38 jobs, 93 meals, 16 chats before) because the Outside draws from the village's random stream every
   // day (its wealth drifts, a rumour may come), which reshuffles the later draws; the snapshot is version 6 (silver, tier, peak, the Outside).
   // M4: the facts are unchanged; the digest moved because the snapshot is version 5 (priorities, rules, offers, reports, away).
@@ -315,4 +317,4 @@ describe('sim: golden run', () => {
   });
 });
 
-const GOLDEN = { facts: { people: 12, day: 4, jobsDone: 37, meals: 94, chats: 35 }, digest: '957d8526:39279' };
+const GOLDEN = { facts: { people: 12, day: 4, jobsDone: 32, meals: 92, chats: 23 }, digest: '45c3457a:43389' };

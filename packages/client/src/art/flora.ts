@@ -365,6 +365,66 @@ export function genBush(variant: number, season: number, tier: number): ObjSprit
   return finish(pb, cx, ay, tier);
 }
 
+/** What is left of a felled tree: a low stump with its rings showing, and a few chips in the grass. */
+export function genStump(variant: number, season: number, tier: number): ObjSprite {
+  const W = 28;
+  const H = 22;
+  const pb = new PixelBuffer(W, H);
+  const cx = 14;
+  const ay = 17;
+  groundShadow(pb, cx + 2, ay, 9, 3, 56);
+  trunk(pb, cx, ay - 6, ay + 1, 5.5, 6.5, WOOD, 700 + variant);
+  // the cut top, a pale ellipse with a ring
+  pb.ellipse(cx, ay - 6, 5.6, 2.6, WOOD_PALE.l);
+  pb.ellipse(cx, ay - 6, 3.4, 1.5, WOOD_PALE.b);
+  pb.ellipse(cx, ay - 6, 1.2, 0.6, WOOD.d);
+  for (let i = 0; i < 3; i++) pb.set(cx - 8 + ((i * 7 + variant * 3) % 14), ay + 1 + (i % 2), WOOD_PALE.b);
+  if (season === 3) snowCap(pb, 2, 700 + variant, 0.5);
+  return finish(pb, cx, ay, tier);
+}
+
+/** A young tree coming up where one was cut: a thin stem with a small crown. */
+export function genSapling(variant: number, season: number, tier: number): ObjSprite {
+  const W = 28;
+  const H = 40;
+  const pb = new PixelBuffer(W, H);
+  const cx = 14;
+  const ay = 35;
+  groundShadow(pb, cx + 2, ay, 7, 2.4, 48);
+  trunk(pb, cx, ay - 16, ay + 1, 1.4, 2, WOOD, 720 + variant);
+  const leaves = season === 2 ? BUSH_AUTUMN : season === 0 ? BUSH_SPRING : BUSH_SUMMER;
+  shadedBlob(pb, cx - 3, ay - 14, 5, 4, season === 3 ? ramp('#6a7c58') : leaves, { seed: 721 + variant, speckle: 0.14 });
+  shadedBlob(pb, cx + 3, ay - 17, 5.5, 4.5, season === 3 ? ramp('#6a7c58') : leaves, { seed: 722 + variant, speckle: 0.14 });
+  shadedBlob(pb, cx, ay - 21, 5, 4, season === 3 ? ramp('#6a7c58') : leaves, { seed: 723 + variant, speckle: 0.14 });
+  if (season === 3) snowCap(pb, 2, 720 + variant, 0.6);
+  return finish(pb, cx, ay, tier);
+}
+
+/** A bush that has been picked clean: bare twigs, a few leaves left, until it bears again. */
+export function genBareBush(variant: number, season: number, tier: number): ObjSprite {
+  const W = 32;
+  const H = 26;
+  const pb = new PixelBuffer(W, H);
+  const cx = 16;
+  const ay = 22;
+  groundShadow(pb, cx + 3, ay, 10, 3, 50);
+  const seed = 740 + variant;
+  for (let i = 0; i < 9; i++) {
+    const a = -0.9 + (i / 8) * 1.8;
+    const len = 9 + ((i * 5 + variant * 3) % 5);
+    for (let k = 0; k < len; k++) {
+      const x = Math.round(cx + Math.sin(a) * k * 0.9);
+      const y = Math.round(ay - Math.cos(a) * k * 0.85);
+      pb.set(x, y, k % 3 === 0 ? WOOD_PALE.l : WOOD.b);
+    }
+  }
+  const leaves = season === 2 ? BUSH_AUTUMN : season === 0 ? BUSH_SPRING : BUSH_SUMMER;
+  shadedBlob(pb, cx + 4, ay - 8, 2.2, 1.8, season === 3 ? ramp('#6a7c58') : leaves, { seed: seed + 1, speckle: 0.2 });
+  shadedBlob(pb, cx - 5, ay - 6, 1.8, 1.5, season === 3 ? ramp('#6a7c58') : leaves, { seed: seed + 2, speckle: 0.2 });
+  if (season === 3) snowCap(pb, 2, seed, 0.5);
+  return finish(pb, cx, ay, tier);
+}
+
 export function genReeds(variant: number, season: number, tier: number): ObjSprite {
   const W = 28;
   const H = 40;
@@ -527,6 +587,12 @@ export function genObject(code: number, variant: number, season: number, tier: n
       return dead ? witherReeds(variant, season) : genReeds(variant, season, tier);
     case O.DeadTree:
       return genDeadTree(variant, season, tier);
+    case O.Stump:
+      return genStump(variant, season, tier);
+    case O.Sapling:
+      return genSapling(variant, season, tier);
+    case O.BareBush:
+      return genBareBush(variant, season, tier);
     case O.Bones:
       return genBones(variant, season, tier);
     case O.Flowers:
@@ -586,5 +652,5 @@ function witherFlowers(variant: number, season: number): ObjSprite {
   return { ...s, visible: season !== 3 };
 }
 
-export const FLORA_CODES: number[] = [O.Pine, O.Oak, O.Bamboo, O.Boulder, O.Bush, O.Reeds, O.DeadTree, O.Bones, O.Flowers, O.Banner, O.Well, O.Lantern, O.Dummy, O.Rack, O.Standard];
+export const FLORA_CODES: number[] = [O.Pine, O.Oak, O.Bamboo, O.Boulder, O.Bush, O.Reeds, O.DeadTree, O.Stump, O.Sapling, O.BareBush, O.Bones, O.Flowers, O.Banner, O.Well, O.Lantern, O.Dummy, O.Rack, O.Standard];
 void BLIGHT_TINT;

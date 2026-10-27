@@ -8,6 +8,7 @@ import { BAL, DAYS_PER_YEAR, GAME_DAY_MS, personName, type Rng, type SkillId } f
 import type { Ctx } from './ctx';
 import { blightReach, foodDaysOf } from './economy';
 import { pushFeed } from './feed';
+import { isClosed } from './walls';
 import { arrive, die, leave } from './life';
 import { ageOf } from './people';
 import { refugeeOffer } from './offers';
@@ -168,7 +169,7 @@ export function defenceOf(c: Ctx): number {
   }
   const posts = c.st.buildings.filter((b) => b.kind === 'watchpost' && !b.con).length;
   const walls = c.st.buildings.filter((b) => b.kind === 'wall' && !b.con).length;
-  return total + Math.min(5, posts) * D.watchpost + Math.min(D.wallCap, walls * D.wall);
+  return total + Math.min(5, posts) * D.watchpost + Math.min(D.wallCap, walls * D.wall) + (isClosed(c) ? D.loop : 0);
 }
 
 function hurt(c: Ctx, p: Person, dmg: number, lethal: boolean): boolean {

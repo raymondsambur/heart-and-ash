@@ -313,6 +313,64 @@ function wellStaged(c: Ctx, pr: ConProgress): void {
   c.metrics.eave = 33 * sc.zk;
 }
 
+/**
+ * The gate in the village wall: two stone towers at the ends of the four tiles and a timber lintel with a small roof across the top, with the
+ * middle left open to walk through. Built like a wall: footing, towers, then the lintel and roof (and battlements on the towers when done).
+ */
+export function gateStaged(c: Ctx, pr: ConProgress): void {
+  const { sc, st, w, d } = c;
+  const alongU = w >= d;
+  const len = alongU ? w : d;
+  const thick = alongU ? d : w;
+  const tower = 1.05;
+  const e = 0.08;
+  // a box between two stations along the gate (a0..a1) and across it, whichever way the gate lies
+  const span = (a0: number, a1: number, z0: number, z1: number, top: Shader, s1: Shader, s2: Shader): void => {
+    if (alongU) sc.box(a0, e, z0, a1, thick - e, z1, top, s1, s2);
+    else sc.box(e, a0, z0, thick - e, a1, z1, top, s1, s2);
+  };
+  const timber = (a0: number, a1: number, z0: number, z1: number): void => {
+    if (alongU) timberBox(c, a0, e, a1, thick - e, z0, z1);
+    else timberBox(c, e, a0, thick - e, a1, z0, z1);
+  };
+  if (pr.ground > 0 && pr.foundation < 1) {
+    if (alongU) dirt(c, 0, 0, w, d, pr.ground);
+    else dirt(c, 0, 0, w, d, pr.ground);
+  }
+  const base = pr.foundation > 0 ? Math.max(1.2, 4 * pr.foundation) : 0;
+  const top = 4 + 26 * pr.walls;
+  const ends: [number, number][] = [[e, tower], [len - tower, len - e]];
+  if (base > 0 && pr.walls <= 0) {
+    const side = (off: number): Shader => wallShader(st, { kind: 'stone', base: scale(st.stone, 0.9), H: base, eave: 0, off });
+    for (const [a0, a1] of ends) span(a0, a1, 0, base, stoneTop(st, st.stone), side(0), side(5));
+  }
+  if (pr.walls > 0) {
+    const side = (off: number): Shader => wallShader(st, { kind: 'stone', base: scale(st.stone, 0.98), H: top, eave: 0, off });
+    for (const [a0, a1] of ends) span(a0, a1, 0, top, stoneTop(st, scale(st.stone, 1.05)), side(0), side(6));
+  }
+  // the lintel laid across the opening, then a small roof over it
+  if (pr.walls >= 1 && pr.roof > 0) {
+    const reach = (len - 2 * tower) * Math.min(1, pr.roof * 2);
+    timber(tower, tower + reach, top - 5, top - 2.5);
+    if (pr.roof > 0.5) {
+      const r = Math.min(1, (pr.roof - 0.5) * 2);
+      timber(e, len - e, top - 2.5, top - 2.5 + 3.5 * r);
+    }
+  }
+  if (pr.walls >= 1 && pr.roof >= 1) {
+    if (alongU) {
+      crenellate(sc, st, ends[0][0], e, ends[0][1], thick - e, top, 3);
+      crenellate(sc, st, ends[1][0], e, ends[1][1], thick - e, top, 3);
+    } else {
+      crenellate(sc, st, e, ends[0][0], thick - e, ends[0][1], top, 3);
+      crenellate(sc, st, e, ends[1][0], thick - e, ends[1][1], top, 3);
+    }
+  }
+  if (pr.walls > 0 && pr.walls < 1) scaffold(c, alongU ? e : e, alongU ? e : e, alongU ? tower : thick - e, alongU ? thick - e : tower, top);
+  if (pr.staked && pr.foundation === 0) stakes(c, e, e, w - e, d - e);
+  c.metrics.eave = 30 * sc.zk;
+}
+
 /** A stretch of stone wall along u (4×1) or v (1×4): footing, wall, then boards laid along the top and, when finished, battlements. */
 export function wallStaged(c: Ctx, pr: ConProgress): void {
   const { sc, st, w, d } = c;
@@ -353,6 +411,7 @@ export function staged(c: Ctx, pr: ConProgress): void {
   const kind = c.spec.kind;
   if (kind === 'well') wellStaged(c, pr);
   else if (kind === 'wall') wallStaged(c, pr);
+  else if (kind === 'gateway') gateStaged(c, pr);
   else stagedBasic(c, pr, LOOK[kind] ?? LOOK.house);
   if (pr.rubble > 0) rubbleHeap(c, 0.2, 0.2, c.w - 0.2, c.d - 0.2, pr.rubble);
   piles(c, pr, c.d);

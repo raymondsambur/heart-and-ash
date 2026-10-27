@@ -6,7 +6,7 @@
  * the optional fields (beasts, harvest nodes, gear, battle sides) are kept because later milestones bring wildlife and raiders back.
  */
 import type { CharState, ToolKind } from '../art/anim';
-import type { ActorState, BuildingDef, CarryKind, Dir, GearLook, Look, NodeKind, NpcAct, NpcRole, PlotDef, Speed, TimeView, WeaponType, WorldPayload } from '@hearth/shared';
+import type { ActorState, BuildingDef, CarryKind, Dir, FloraTile, GearLook, GroundTile, Look, NodeKind, NpcAct, NpcRole, PlotDef, Speed, TimeView, WeaponType, WorldPayload } from '@hearth/shared';
 
 /** World payload with its grids decoded from base64. */
 export interface DecodedWorld {
@@ -99,6 +99,10 @@ export interface GameViewApi {
   /** Finished buildings and plots (sent whole whenever they change). */
   setBuildings(list: BuildingDef[]): void;
   setPlots(list: PlotDef[]): void;
+  /** Trees cut and bushes picked (M6): where the ground differs from the map. */
+  setFlora(list: FloraTile[]): void;
+  /** Roads worn by feet (M6): where the terrain differs from the map. */
+  setGround(list: GroundTile[]): void;
   applyEntities(delta: { add?: RenderEntity[]; upd?: RenderEntityPatch[]; del?: number[] }): void;
   clearEntities(): void;
 

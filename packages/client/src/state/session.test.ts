@@ -34,6 +34,8 @@ function fakeView() {
     clearEntities: () => (entities.clear(), void calls.push('clear')),
     setBuildings: (b) => void calls.push(`buildings:${b.length}`),
     setPlots: (p) => void calls.push(`plots:${p.length}`),
+    setFlora: (f) => void calls.push(`flora:${f.length}`),
+    setGround: (g) => void calls.push(`ground:${g.length}`),
     applyEntities: (d) => {
       for (const e of d.add ?? []) entities.set(e.id, e);
       for (const id of d.del ?? []) entities.delete(id);
@@ -66,8 +68,10 @@ const village: VillageView = {
   orders: [],
   wishes: [],
   status: { foodDays: 12, fuelDays: 20, rationing: 0, tier: 0, silver: 20, blight: 0, alert: null },
-  policy: { priorities: [2, 2, 2, 2, 2, 2, 2], rules: [], offers: [], away: false, crisis: null, maxRules: 12 },
+  policy: { priorities: [2, 2, 2, 2, 2, 2, 2], rules: [], offers: [], away: false, crisis: null, maxRules: 16, ring: null, wall: null },
   reports: [],
+  flora: [],
+  ground: [],
   outside: { name: 'Jade Ford', regard: 0, wealth: 50, silver: 20, pact: false, caravanIn: 20, news: [], nextTier: null, prices: {} },
 };
 
@@ -91,7 +95,7 @@ describe('GameSession', () => {
     expect(store.get('village')?.name).toBe('Jade Ford');
     expect(store.get('population')).toBe(2);
     expect(store.get('stock')).toEqual({ ration: 5 });
-    expect(v.calls).toEqual(['clear', 'buildings:1', 'plots:0', 'entities:+2/~0/-0', 'speed:1', 'time', 'center:11,11']);
+    expect(v.calls).toEqual(['clear', 'buildings:1', 'plots:0', 'flora:0', 'ground:0', 'entities:+2/~0/-0', 'speed:1', 'time', 'center:11,11']);
     ws.receive({ t: 'view', view: village });
     expect(v.calls.filter((c) => c.startsWith('center')).length).toBe(1);
   });
@@ -150,7 +154,7 @@ describe('GameSession', () => {
     session.markRead(9);
     expect(ws.sent.at(-1)).toEqual({ t: 'read', report: 9 });
     ws.receive({ t: 'view', view: village });
-    const policy = { priorities: [2, 2, 2, 4, 2, 2, 2], rules: [], offers: [], away: true, crisis: null, maxRules: 12 };
+    const policy = { priorities: [2, 2, 2, 4, 2, 2, 2], rules: [], offers: [], away: true, crisis: null, maxRules: 16, ring: null, wall: null };
     const reports = [{ id: 1, kind: 'day' as const, day: 0, title: 'Day 1 of Spring', lines: [{ text: 'People: 2.', tone: 'info' as const }], unread: true }];
     ws.receive({ t: 'upd', time, speed: 1, population: 2, ents: [], policy, reports });
     expect(store.get('policy')).toEqual(policy);

@@ -1,17 +1,18 @@
-import { BAL, GOODS, Rng, SPEEDS, generateWorld, type BuildingDef, type Good, type PlotDef, type WeatherKind } from '@hearth/shared';
+import { BAL, GOODS, Rng, SPEEDS, generateWorld, type WallRing, type BuildingDef, type Good, type PlotDef, type WeatherKind } from '@hearth/shared';
 import { newField } from './actions';
 import { drawTraits, startingSkills, TRADE_ROTA } from './people';
 import { SiteIndex } from './sites';
 import { dayOf } from './calendar';
 import { ensureDirector } from './director';
+import { trafficRows } from './roads';
 import { ensureOutside } from './outside';
 import { defaultPriorities } from './policy';
 import { emptyBase } from './reports';
-import type { Base, DirectorState, Field, FeedItem, Grave, Job, Offer, Order, OutsideState, Person, Report, Rule, SimState } from './types';
+import type { Base, DirectorState, FloraEntry, Field, FeedItem, Grave, Job, Offer, Order, OutsideState, Person, Report, Rule, SimState } from './types';
 import { WEATHER_KINDS } from './weather';
 
 /** Bump when the shape of the saved state changes, and add a step to `MIGRATIONS`. */
-export const SNAPSHOT_VERSION = 6;
+export const SNAPSHOT_VERSION = 7;
 
 export interface SimSnapshot {
   v: number;
@@ -61,6 +62,12 @@ export interface SimSnapshot {
   tier: 0 | 1 | 2;
   peak: number;
   outside: OutsideState;
+  flora: FloraEntry[];
+  chops: Record<number, number>;
+  ring: WallRing | null;
+  ground: Record<number, number>;
+  /** The tiles with traffic: [tile, traffic, days quiet]. */
+  traffic: [number, number, number][];
 }
 
 export class SnapshotError extends Error {}
@@ -120,7 +127,21 @@ const MIGRATIONS: Record<number, (s: Raw) => Raw> = {
   4: (s) => ({ ...s, v: 5 }),
   // v5 (M4) to v6 (M5): the Outside, silver, the settlement tier and the peak. An older village gets a fresh Outside; its tier is worked out on the first day.
   5: (s) => ({ ...s, v: 6 }),
+  // v6 (M5) to v7 (M6): the living ground (cut trees, picked bushes). The map starts as it was made.
+  6: (s) => ({ ...s, v: 7 }),
 };
+
+/** Typed traffic arrays from their saved rows. */
+function trafficArrays(rows: [number, number, number][], cells: number): { traffic: Float32Array; quiet: Uint8Array } {
+  const n = Math.max(cells, rows.reduce((m, r) => Math.max(m, r[0] + 1), 0));
+  const traffic = new Float32Array(n);
+  const quiet = new Uint8Array(n);
+  for (const [i, v, q] of rows) {
+    traffic[i] = v;
+    quiet[i] = q;
+  }
+  return { traffic, quiet };
+}
 
 /** The parts of a person the M0 villager did not have. */
 function blankMind(rng: Rng): Raw {
@@ -219,6 +240,11 @@ export function serializeState(st: SimState, rng: Rng): SimSnapshot {
       tier: st.tier,
       peak: st.peak,
       outside: st.outside,
+      flora: st.flora,
+      chops: st.chops,
+      ring: st.ring,
+      ground: st.ground,
+      traffic: trafficRows(st.traffic, st.quiet),
     }),
   ) as SimSnapshot;
 }
@@ -242,7 +268,8 @@ function obj(o: Raw, k: string): Record<string, never> {
 }
 
 /** Validate a saved snapshot, upgrade it if it is old, and load it into state. Sets the rng state. */
-export function restoreState(saved: unknown, rng: Rng): SimState {
+/** `cells` is the number of tiles of the map (width times height), for the traffic; it is worked out from the saved rows when not given. */
+export function restoreState(saved: unknown, rng: Rng, cells = 0): SimState {
   if (typeof saved !== 'object' || saved === null) throw new SnapshotError('snapshot is not an object');
   let s = saved as Raw;
   let v = num(s, 'v');
@@ -313,6 +340,11 @@ export function restoreState(saved: unknown, rng: Rng): SimState {
     silver: typeof s.silver === 'number' ? s.silver : BAL.outside.startSilver,
     tier: s.tier === 1 || s.tier === 2 ? s.tier : 0,
     peak: typeof s.peak === 'number' ? s.peak : 0,
+    ground: typeof s.ground === 'object' && s.ground !== null && !Array.isArray(s.ground) ? clone<Record<number, number>>(s.ground) : {},
+    ...trafficArrays(Array.isArray(s.traffic) ? (s.traffic as [number, number, number][]) : [], cells),
+    ring: typeof s.ring === 'object' && s.ring !== null ? clone<WallRing>(s.ring) : null,
+    flora: Array.isArray(s.flora) ? clone<FloraEntry[]>(s.flora) : [],
+    chops: typeof s.chops === 'object' && s.chops !== null && !Array.isArray(s.chops) ? clone<Record<number, number>>(s.chops) : {},
     outside: ensureOutside(typeof s.outside === 'object' && s.outside !== null ? clone<OutsideState>(s.outside) : undefined, rng, dayOf(num(s, 'totalMs'))),
   };
 }

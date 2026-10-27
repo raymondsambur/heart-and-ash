@@ -383,7 +383,7 @@ describe('the Outside in the view and the save', () => {
     st.outside.regard = 33;
     st.outside.news.push('A rumour.');
     const snap = JSON.parse(JSON.stringify(sim.serialize())) as SimSnapshot;
-    expect(snap.v).toBe(6);
+    expect(snap.v).toBe(7);
     const back = createSim({ seed: 14, saved: snap });
     expect(back.inspect().silver).toBe(77);
     expect(back.inspect().outside.regard).toBe(33);
