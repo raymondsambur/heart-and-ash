@@ -420,6 +420,7 @@ describe('saves with construction in them', () => {
   it('continues exactly after a save and load in the middle of a build', { timeout: 120_000 }, () => {
     const make = () => {
       const sim = createSim({ seed: 21 });
+      (sim.inspect() as { tier: number }).tier = 1;
       sim.step(GAME_DAY_MS);
       const v0 = sim.view();
       const c = sim.world.start.center;

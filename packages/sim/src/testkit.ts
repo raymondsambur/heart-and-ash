@@ -19,6 +19,8 @@ export function kit(seed = 1, population = 12): Kit {
   const sim = createSim({ seed, population });
   sim.step(3 * 15000);
   const st = sim.inspect() as SimState;
+  // Most tests build and make rules freely: the settlement is a town unless a test says otherwise.
+  st.tier = 2;
   const world = sim.world;
   const sites = new SiteIndex(world, st.buildings, st.plots, st.orders);
   const over = new Uint8Array(world.w * world.h);

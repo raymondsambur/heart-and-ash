@@ -1,16 +1,17 @@
-import { GOODS, Rng, SPEEDS, generateWorld, type BuildingDef, type Good, type PlotDef, type WeatherKind } from '@hearth/shared';
+import { BAL, GOODS, Rng, SPEEDS, generateWorld, type BuildingDef, type Good, type PlotDef, type WeatherKind } from '@hearth/shared';
 import { newField } from './actions';
 import { drawTraits, startingSkills, TRADE_ROTA } from './people';
 import { SiteIndex } from './sites';
 import { dayOf } from './calendar';
 import { ensureDirector } from './director';
+import { ensureOutside } from './outside';
 import { defaultPriorities } from './policy';
 import { emptyBase } from './reports';
-import type { Base, DirectorState, Field, FeedItem, Grave, Job, Offer, Order, Person, Report, Rule, SimState } from './types';
+import type { Base, DirectorState, Field, FeedItem, Grave, Job, Offer, Order, OutsideState, Person, Report, Rule, SimState } from './types';
 import { WEATHER_KINDS } from './weather';
 
 /** Bump when the shape of the saved state changes, and add a step to `MIGRATIONS`. */
-export const SNAPSHOT_VERSION = 5;
+export const SNAPSHOT_VERSION = 6;
 
 export interface SimSnapshot {
   v: number;
@@ -56,6 +57,10 @@ export interface SimSnapshot {
   seasonBase: Base;
   away: SimState['away'];
   crisis: string | null;
+  silver: number;
+  tier: 0 | 1 | 2;
+  peak: number;
+  outside: OutsideState;
 }
 
 export class SnapshotError extends Error {}
@@ -113,6 +118,8 @@ const MIGRATIONS: Record<number, (s: Raw) => Raw> = {
   3: (s) => ({ ...s, v: 4, rationing: 0, hearthDay: -1, dir: null }),
   // v4 (M3) to v5 (M4): priorities, rules, decisions and reports. All start empty; the first day's report is skipped (no base yet).
   4: (s) => ({ ...s, v: 5 }),
+  // v5 (M4) to v6 (M5): the Outside, silver, the settlement tier and the peak. An older village gets a fresh Outside; its tier is worked out on the first day.
+  5: (s) => ({ ...s, v: 6 }),
 };
 
 /** The parts of a person the M0 villager did not have. */
@@ -208,6 +215,10 @@ export function serializeState(st: SimState, rng: Rng): SimSnapshot {
       seasonBase: st.seasonBase,
       away: st.away,
       crisis: st.crisis,
+      silver: st.silver,
+      tier: st.tier,
+      peak: st.peak,
+      outside: st.outside,
     }),
   ) as SimSnapshot;
 }
@@ -299,5 +310,9 @@ export function restoreState(saved: unknown, rng: Rng): SimState {
     seasonBase: typeof s.seasonBase === 'object' && s.seasonBase !== null ? clone<Base>(s.seasonBase) : emptyBase(),
     away: typeof s.away === 'object' && s.away !== null ? clone<SimState['away']>(s.away) : null,
     crisis: typeof s.crisis === 'string' ? s.crisis : null,
+    silver: typeof s.silver === 'number' ? s.silver : BAL.outside.startSilver,
+    tier: s.tier === 1 || s.tier === 2 ? s.tier : 0,
+    peak: typeof s.peak === 'number' ? s.peak : 0,
+    outside: ensureOutside(typeof s.outside === 'object' && s.outside !== null ? clone<OutsideState>(s.outside) : undefined, rng, dayOf(num(s, 'totalMs'))),
   };
 }

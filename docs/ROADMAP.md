@@ -66,6 +66,8 @@ Status: built on the branch `m4-orders-rules-reports` (written in the owner's ma
 - Settlement tiers (hamlet, village, town) with unlocks.
 - Balance, art polish, tutorial hints, accessibility.
 
+Status: built on the branch `m5-the-outside` (stacked on `m4-orders-rules-reports`, written in the owner's main session); what was built, what differs from the spec and the measured numbers are in `docs/notes/m5.md`. New art and sound are not done.
+
 ## Detailed specs
 
 - M1: `docs/notes/m1-agent-brain-spec.md` (the villager brain, needs, skills, traits, ambitions, actions, planner, job board, villager sheet, acceptance).

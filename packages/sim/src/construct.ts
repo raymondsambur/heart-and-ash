@@ -7,6 +7,7 @@
  * Nothing here moves a person: it changes the world (what stands, what blocks, what the sites are) and the order's progress.
  */
 import {
+  BAL,
   BLUEPRINTS,
   DEMOLISH_LABOUR,
   GOOD_LABEL,
@@ -33,6 +34,7 @@ import {
   type WorldData,
 } from '@hearth/shared';
 import { newField } from './actions';
+import { tierReason } from './outside';
 import type { CommandResult, Order, Person } from './types';
 import type { Ctx } from './ctx';
 import type { Draft } from './jobs';
@@ -119,7 +121,9 @@ export function placeOrder(c: Ctx, kind: BuildKind, x: number, y: number, rot: b
   const bp = BLUEPRINTS[kind];
   if (!bp) return fail('bad_kind', 'The village cannot build that.');
   if (!Number.isInteger(x) || !Number.isInteger(y)) return fail('bad_place', 'Pick a tile.');
-  if (st.orders.length >= MAX_ORDERS) return fail('too_many', 'There are too many orders at once. Cancel one or wait for the builders.');
+  const locked = tierReason(kind, st.tier);
+  if (locked) return fail('tier', locked);
+  if (st.orders.length >= Math.min(MAX_ORDERS, BAL.tiers.maxOrders[st.tier])) return fail('too_many', 'There are too many orders at once for a settlement of this size. Cancel one or wait for the builders.');
   const chk = canPlace({ world: c.world, buildings: st.buildings, plots: st.plots }, kind, x, y, rot);
   if (!chk.ok) return fail('cannot_place', chk.reason);
   const { w, d, door } = chk;

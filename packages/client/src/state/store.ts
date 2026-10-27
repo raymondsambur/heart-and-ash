@@ -2,7 +2,7 @@
  * The client's central state: what the server last told us about the village, and the connection. Small on purpose,
  * the client holds no game rules. `subscribe(keys, fn)` is the only way UI parts learn about changes.
  */
-import type { BuildKind, BuildingDef, FeedEntry, MeResponse, OrderView, PersonBrief, PersonSheet, PlotDef, Speed, StockSummary, PolicyView, ReportView, TimeView, VillageBrief, VillageStatus, WishView } from '@hearth/shared';
+import type { BuildKind, BuildingDef, FeedEntry, MeResponse, OrderView, PersonBrief, PersonSheet, PlotDef, Speed, StockSummary, OutsideView, PolicyView, ReportView, TimeView, VillageBrief, VillageStatus, WishView } from '@hearth/shared';
 import type { ConnInfo } from '../net/socket';
 
 /** What the pointer does on the map: nothing, lay out a building, or pick something to take down. */
@@ -37,6 +37,8 @@ export interface State {
   /** Priorities, rules, decisions waiting and whether the village is on its own (M4), and the reports. */
   policy: PolicyView;
   reports: ReportView[];
+  /** The town beyond the map and the settlement's next step (M5). */
+  outside: OutsideView;
   tool: MapTool;
   /** The building or field the player last tapped (its progress and the way to take it down show in the build panel). */
   focus: Focus | null;
@@ -64,9 +66,10 @@ export function initialState(): State {
     follow: false,
     orders: [],
     wishes: [],
-    status: { foodDays: 0, fuelDays: 99, rationing: 0, blight: 0, alert: null },
-    policy: { priorities: [2, 2, 2, 2, 2, 2, 2], rules: [], offers: [], away: false, crisis: null },
+    status: { foodDays: 0, fuelDays: 99, rationing: 0, tier: 0, silver: 0, blight: 0, alert: null },
+    policy: { priorities: [2, 2, 2, 2, 2, 2, 2], rules: [], offers: [], away: false, crisis: null, maxRules: 12 },
     reports: [],
+    outside: { name: '', regard: 0, wealth: 50, silver: 0, pact: false, caravanIn: null, news: [], nextTier: null, prices: {} },
     tool: null,
     focus: null,
     conn: { state: 'idle', attempt: 0 },

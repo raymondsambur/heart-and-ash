@@ -1,5 +1,7 @@
 import {
+  BAL,
   DAYS_PER_YEAR,
+  MAX_RULES,
   GAME_HOUR_MS,
   Rng,
   SIM_STEP_MS,
@@ -28,6 +30,7 @@ import { clockOf, dayOf } from './calendar';
 import { cancelOrder, computeOverlay, orderDemolish, orderViews, placeOrder, wishes } from './construct';
 import { directorDay, newDirector } from './director';
 import { answerOffer, expireOffers } from './offers';
+import { newOutside, outsideDay, outsideView } from './outside';
 import { deleteRule, defaultPriorities, runRules, setPriority, setRule } from './policy';
 import { awayReport, baseOf, dayReport, emptyBase, markRead, seasonReport } from './reports';
 import { foodDaysOf, lightHearths, statusOf } from './economy';
@@ -216,6 +219,10 @@ export function createSim(opts: CreateSimOptions): Sim {
       seasonBase: emptyBase(),
       away: null,
       crisis: null,
+      silver: BAL.outside.startSilver,
+      tier: 0,
+      peak: 0,
+      outside: newOutside(rng.fork('outside')),
     };
   }
 
@@ -258,6 +265,7 @@ export function createSim(opts: CreateSimOptions): Sim {
 
   if (!opts.saved) populate(opts.population ?? 12);
   sync();
+  st.peak = Math.max(st.peak, c.people.length);
   if (st.dayBase.day < 0) st.dayBase = baseOf(c);
   if (st.seasonBase.day < 0) st.seasonBase = baseOf(c);
 
@@ -276,6 +284,7 @@ export function createSim(opts: CreateSimOptions): Sim {
     if (season !== prevSeason) seasonReport(c, prevSeason, season === 0 ? year - 1 : year);
     dailyLife(c);
     directorDay(c);
+    outsideDay(c);
     expireOffers(c);
     checkCrisis();
     for (const p of c.people) reviewAmbitions(c, p);
@@ -283,13 +292,14 @@ export function createSim(opts: CreateSimOptions): Sim {
 
   /** While the manager is away a village that would be lost parks itself instead of dying unseen. */
   function checkCrisis(): void {
-    if (!st.away || st.crisis) return;
+    if (st.crisis) return;
     const n = c.people.length;
-    const why = n === 0 ? 'nobody is left' : n <= CRISIS_PEOPLE ? `only ${n} people are left` : foodDaysOf(c) < CRISIS_FOOD_DAYS ? 'the food has run out' : '';
+    // Nobody left ends the village whether or not the manager is there; the other crises only park it while they are away.
+    const why = n === 0 ? 'nobody is left' : !st.away ? '' : n <= CRISIS_PEOPLE ? `only ${n} people are left` : foodDaysOf(c) < CRISIS_FOOD_DAYS ? 'the food has run out' : '';
     if (!why) return;
     st.crisis = why;
     st.speed = 0;
-    pushFeed(st, pending, 'crisis', `The village stopped itself while you were away: ${why}. It waits for you.`);
+    pushFeed(st, pending, 'crisis', n === 0 ? `Nobody is left in ${st.villageName}. It lasted ${Math.floor(c.day / DAYS_PER_YEAR)} years and ${c.day % DAYS_PER_YEAR} days, with ${st.peak} people at the most.` : `The village stopped itself while you were away: ${why}. It waits for you.`);
   }
 
   function tick(dt: number): void {
@@ -393,7 +403,9 @@ export function createSim(opts: CreateSimOptions): Sim {
           offers: st.offers.map(({ n: _n, ...o }) => ({ ...o, options: o.options.map((x) => ({ ...x })) })),
           away: st.away !== null,
           crisis: st.crisis,
+          maxRules: Math.min(MAX_RULES, BAL.tiers.maxRules[st.tier]),
         },
+        outside: outsideView(c),
         reports: st.reports.map((r) => ({ ...r, lines: r.lines.map((l) => ({ ...l })) })),
       };
     },

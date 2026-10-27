@@ -63,7 +63,7 @@ interface Running {
   lastSaveAt: number;
   /** Entity ids the connected client knows, and the JSON of the slow-changing parts it last received. */
   known: Set<number>;
-  sent: { buildings: string; plots: string; stock: string; roster: string; orders: string; status: string; policy: string; reports: string };
+  sent: { buildings: string; plots: string; stock: string; roster: string; orders: string; status: string; policy: string; reports: string; outside: string };
   /** The villager whose sheet the client is watching, and when it was last sent (real ms). */
   watch: number | null;
   sheetAt: number;
@@ -134,7 +134,7 @@ export class VillageHost {
         dirty: false,
         lastSaveAt: this.now(),
         known: new Set(),
-        sent: { buildings: '', plots: '', stock: '', roster: '', orders: '', status: '', policy: '', reports: '' },
+        sent: { buildings: '', plots: '', stock: '', roster: '', orders: '', status: '', policy: '', reports: '', outside: '' },
         watch: null,
         sheetAt: 0,
         rosterAt: 0,
@@ -326,7 +326,7 @@ export class VillageHost {
       dirty: kept?.dirty ?? false,
       lastSaveAt: kept?.lastSaveAt ?? this.now(),
       known: new Set(),
-      sent: { buildings: '', plots: '', stock: '', roster: '', orders: '', status: '', policy: '', reports: '' },
+      sent: { buildings: '', plots: '', stock: '', roster: '', orders: '', status: '', policy: '', reports: '', outside: '' },
       watch: null,
       sheetAt: 0,
       rosterAt: 0,
@@ -409,7 +409,7 @@ export class VillageHost {
 
   private remember(r: Running, view: VillageView): void {
     r.known = new Set(view.entities.map((e) => e.id));
-    r.sent = { buildings: JSON.stringify(view.buildings), plots: JSON.stringify(view.plots), stock: JSON.stringify(view.stock), roster: JSON.stringify(view.roster), orders: JSON.stringify({ o: view.orders, w: view.wishes }), status: JSON.stringify(view.status), policy: JSON.stringify(view.policy), reports: JSON.stringify(view.reports) };
+    r.sent = { buildings: JSON.stringify(view.buildings), plots: JSON.stringify(view.plots), stock: JSON.stringify(view.stock), roster: JSON.stringify(view.roster), orders: JSON.stringify({ o: view.orders, w: view.wishes }), status: JSON.stringify(view.status), policy: JSON.stringify(view.policy), reports: JSON.stringify(view.reports), outside: JSON.stringify(view.outside) };
     r.rosterAt = this.now();
   }
 
@@ -448,6 +448,8 @@ export class VillageHost {
     if (pol !== r.sent.policy) (msg.policy = v.policy), (r.sent.policy = pol);
     const rep = JSON.stringify(v.reports);
     if (rep !== r.sent.reports) (msg.reports = v.reports), (r.sent.reports = rep);
+    const out = JSON.stringify(v.outside);
+    if (out !== r.sent.outside) (msg.outside = v.outside), (r.sent.outside = out);
     const t = this.now();
     if (t - r.rosterAt >= ROSTER_EVERY_MS) {
       r.rosterAt = t;

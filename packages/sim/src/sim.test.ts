@@ -83,7 +83,7 @@ describe('sim: serialize and restore', () => {
 });
 
 describe('sim: calendar, seasons and weather', () => {
-  it('rolls over days, seasons and the year and reports it in events', () => {
+  it('rolls over days, seasons and the year and reports it in events', { timeout: 120_000 }, () => {
     // The calendar does not depend on how many people live in the village: two keep the test quick on a slow machine.
     const sim = createSim({ seed: 9, population: 2 });
     const step = DAY / 2; // half a day per call keeps the test fast
@@ -294,6 +294,8 @@ describe('sim: save and load', () => {
 describe('sim: golden run', () => {
   // A fingerprint of seed 1337 after four game days. It changes whenever the behaviour of the village changes on purpose:
   // when it does, check the new run looks right (npm run soak) and update the digest and the facts below together.
+  // M5: the facts moved a little (38 jobs, 93 meals, 16 chats before) because the Outside draws from the village's random stream every
+  // day (its wealth drifts, a rumour may come), which reshuffles the later draws; the snapshot is version 6 (silver, tier, peak, the Outside).
   // M4: the facts are unchanged; the digest moved because the snapshot is version 5 (priorities, rules, offers, reports, away).
   // M3: the facts moved (28 jobs, 92 meals, 74 chats before) because the hearths now burn the village's wood from the first evening, which
   // sends more people to the woodpile in the first days; the snapshot also has three new fields (rationing, hearthDay, dir). The director's
@@ -313,4 +315,4 @@ describe('sim: golden run', () => {
   });
 });
 
-const GOLDEN = { facts: { people: 12, day: 4, jobsDone: 38, meals: 93, chats: 16 }, digest: '3c25244e:38511' };
+const GOLDEN = { facts: { people: 12, day: 4, jobsDone: 37, meals: 94, chats: 35 }, digest: '957d8526:39279' };

@@ -111,7 +111,7 @@ export class GameSession {
         view.applyEntities({ add: v.entities.map(toRenderEntity) });
         view.setSpeed(v.speed);
         view.setTime(v.time);
-        store.patch({ time: v.time, speed: v.speed, population: v.population, stock: v.stock, buildings: v.buildings, plots: v.plots, roster: v.roster, feed: v.feed.slice(-FEED_KEEP), orders: v.orders, wishes: v.wishes, status: v.status, policy: v.policy, reports: v.reports });
+        store.patch({ time: v.time, speed: v.speed, population: v.population, stock: v.stock, buildings: v.buildings, plots: v.plots, roster: v.roster, feed: v.feed.slice(-FEED_KEEP), orders: v.orders, wishes: v.wishes, status: v.status, policy: v.policy, reports: v.reports, outside: v.outside });
         // After a reconnect the server forgets whom we were watching.
         const sel = store.get('selected');
         if (sel !== null) this.send({ t: 'inspect', id: sel });
@@ -138,6 +138,7 @@ export class GameSession {
         if (m.status) patch.status = m.status;
         if (m.policy) patch.policy = m.policy;
         if (m.reports) patch.reports = m.reports;
+        if (m.outside) patch.outside = m.outside;
         store.patch(patch);
         const sel = store.get('selected');
         if (sel !== null && store.get('follow')) {

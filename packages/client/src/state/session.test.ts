@@ -65,9 +65,10 @@ const village: VillageView = {
   feed: [],
   orders: [],
   wishes: [],
-  status: { foodDays: 12, fuelDays: 20, rationing: 0, blight: 0, alert: null },
-  policy: { priorities: [2, 2, 2, 2, 2, 2, 2], rules: [], offers: [], away: false, crisis: null },
+  status: { foodDays: 12, fuelDays: 20, rationing: 0, tier: 0, silver: 20, blight: 0, alert: null },
+  policy: { priorities: [2, 2, 2, 2, 2, 2, 2], rules: [], offers: [], away: false, crisis: null, maxRules: 12 },
   reports: [],
+  outside: { name: 'Jade Ford', regard: 0, wealth: 50, silver: 20, pact: false, caravanIn: 20, news: [], nextTier: null, prices: {} },
 };
 
 function setup() {
@@ -149,7 +150,7 @@ describe('GameSession', () => {
     session.markRead(9);
     expect(ws.sent.at(-1)).toEqual({ t: 'read', report: 9 });
     ws.receive({ t: 'view', view: village });
-    const policy = { priorities: [2, 2, 2, 4, 2, 2, 2], rules: [], offers: [], away: true, crisis: null };
+    const policy = { priorities: [2, 2, 2, 4, 2, 2, 2], rules: [], offers: [], away: true, crisis: null, maxRules: 12 };
     const reports = [{ id: 1, kind: 'day' as const, day: 0, title: 'Day 1 of Spring', lines: [{ text: 'People: 2.', tone: 'info' as const }], unread: true }];
     ws.receive({ t: 'upd', time, speed: 1, population: 2, ents: [], policy, reports });
     expect(store.get('policy')).toEqual(policy);
