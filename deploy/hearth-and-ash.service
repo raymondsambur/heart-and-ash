@@ -1,0 +1,35 @@
+# systemd unit for the Hearth and Ash game server.
+# Install: see deploy/README.md. Assumes the game lives in /opt/hearth-and-ash and Node.js 22+ is at /usr/bin/node.
+# It runs beside the old game (its own user, folder, data and port 3100) and never touches it.
+[Unit]
+Description=Hearth and Ash game server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hearth
+Group=hearth
+WorkingDirectory=/opt/hearth-and-ash
+Environment=NODE_ENV=production
+Environment=PORT=3100
+# StateDirectory creates /var/lib/hearth owned by the service user; the database lives there.
+StateDirectory=hearth
+Environment=DB_PATH=/var/lib/hearth/hearth.db
+# Put WORLD_SEED, COOKIE_SECURE=1, TRUST_PROXY=1, AUTOSAVE_MS etc. in this optional file.
+EnvironmentFile=-/etc/hearth-and-ash.env
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning dist/server.mjs
+# Come back after a crash, and give the server time to save every running village on a normal stop.
+Restart=always
+RestartSec=3
+TimeoutStopSec=30
+KillSignal=SIGTERM
+
+# Keep a bug in the game away from the rest of the machine.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

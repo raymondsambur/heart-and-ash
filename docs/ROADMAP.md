@@ -12,6 +12,8 @@ Order chosen with the owner: **agents with dreams first**, then visible construc
 
 Done when: you log in, see the village, pause and change speed, and the server survives a restart with the village intact.
 
+Status: built on the branch `m0-skeleton`; what was copied, adapted and left out, and the measured numbers, are in `docs/notes/m0.md`.
+
 ## M1: villagers with dreams
 
 - About 12 villagers with needs (food, water, rest, warmth, company), skills, traits, relationships and one or two ambitions each.

@@ -1,0 +1,48 @@
+/**
+ * Runtime validation of every client -> server message (zod). Nothing reaches the game layer
+ * unless it parses here; unknown fields are stripped, numbers are bounded.
+ *
+ * The compile-time check at the bottom guarantees the schema output is assignable to `C2S`,
+ * so adding a message to protocol.ts without a schema (or with a wrong one) fails type checking.
+ */
+import type { C2S } from '@hearth/shared';
+import { z } from 'zod';
+
+/** Largest accepted text message in bytes (checked by the gateway before parsing). */
+export const MAX_MESSAGE_BYTES = 4096;
+
+const int = (min: number, max: number) => z.number().int().min(min).max(max);
+
+/** The time controls: 0 pauses. */
+const speed = z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(4)]);
+
+export const c2sSchema = z.discriminatedUnion('t', [
+  z.object({ t: z.literal('hello'), v: int(0, 1000) }),
+  z.object({ t: z.literal('speed'), speed }),
+  z.object({ t: z.literal('ping'), n: int(0, 2 ** 31 - 1) }),
+]);
+
+// Compile-time guard: every parsed message is a valid C2S, and every C2S type has a schema.
+type Parsed = z.infer<typeof c2sSchema>;
+type AssertAssignable<A extends B, B> = A;
+export type _ParsedIsC2S = AssertAssignable<Parsed, C2S>;
+export type _C2SIsParsed = AssertAssignable<C2S, Parsed>;
+
+export type ParseResult = { ok: true; msg: C2S } | { ok: false; error: string };
+
+export function parseClientMessage(raw: string): ParseResult {
+  if (raw.length > MAX_MESSAGE_BYTES) return { ok: false, error: 'message too large' };
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    return { ok: false, error: 'not valid JSON' };
+  }
+  const r = c2sSchema.safeParse(json);
+  if (!r.success) {
+    const issue = r.error.issues[0];
+    const where = issue && issue.path.length ? ` (${issue.path.join('.')})` : '';
+    return { ok: false, error: `${issue?.message ?? 'invalid'}${where}`.slice(0, 120) };
+  }
+  return { ok: true, msg: r.data };
+}
