@@ -2,7 +2,7 @@
  * The client's central state: what the server last told us about the village, and the connection. Small on purpose,
  * the client holds no game rules. `subscribe(keys, fn)` is the only way UI parts learn about changes.
  */
-import type { BuildKind, BuildingDef, FeedEntry, MeResponse, OrderView, PersonBrief, PersonSheet, PlotDef, Speed, StockSummary, TimeView, VillageBrief, VillageStatus, WishView } from '@hearth/shared';
+import type { BuildKind, BuildingDef, FeedEntry, MeResponse, OrderView, PersonBrief, PersonSheet, PlotDef, Speed, StockSummary, PolicyView, ReportView, TimeView, VillageBrief, VillageStatus, WishView } from '@hearth/shared';
 import type { ConnInfo } from '../net/socket';
 
 /** What the pointer does on the map: nothing, lay out a building, or pick something to take down. */
@@ -34,6 +34,9 @@ export interface State {
   wishes: WishView[];
   /** Food and fuel days, rationing, the Blight and alerts. */
   status: VillageStatus;
+  /** Priorities, rules, decisions waiting and whether the village is on its own (M4), and the reports. */
+  policy: PolicyView;
+  reports: ReportView[];
   tool: MapTool;
   /** The building or field the player last tapped (its progress and the way to take it down show in the build panel). */
   focus: Focus | null;
@@ -62,6 +65,8 @@ export function initialState(): State {
     orders: [],
     wishes: [],
     status: { foodDays: 0, fuelDays: 99, rationing: 0, blight: 0, alert: null },
+    policy: { priorities: [2, 2, 2, 2, 2, 2, 2], rules: [], offers: [], away: false, crisis: null },
+    reports: [],
     tool: null,
     focus: null,
     conn: { state: 'idle', attempt: 0 },

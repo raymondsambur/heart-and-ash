@@ -70,8 +70,10 @@ export function spoil(c: Ctx): void {
   const stores = c.st.buildings.filter((b) => b.kind === 'warehouse' && !b.con).length;
   const f = (c.season === 3 ? BAL.spoil.winter : 1) * (stores >= 2 ? BAL.spoil.storehouse : 1) * (1 + BAL.spoil.perBlight * blightReach(c));
   const s = c.st.stock;
+  const before = (s.ration ?? 0) + (s.meal ?? 0);
   s.ration = (s.ration ?? 0) * (1 - BAL.spoil.ration * f);
   s.meal = (s.meal ?? 0) * (1 - BAL.spoil.meal * f);
+  stat(c, 'food_spoiled', before - s.ration - s.meal);
   s.herb = (s.herb ?? 0) * (1 - BAL.spoil.herb * f);
 }
 

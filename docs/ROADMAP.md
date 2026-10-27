@@ -58,6 +58,8 @@ Status: built on the branch `m3-economy` (written in the owner's main session, n
 
 Done when: you can set rules, close the game for an evening, come back to a report that explains what happened, and the village did something sensible in between.
 
+Status: built on the branch `m4-orders-rules-reports` (written in the owner's main session); what was built, what differs from the spec and the measured numbers are in `docs/notes/m4.md`.
+
 ## M5: the Outside and polish
 
 - The abstract town: trade, envoys, emigrants and newcomers; some events send people out of the map and bring news or goods back.

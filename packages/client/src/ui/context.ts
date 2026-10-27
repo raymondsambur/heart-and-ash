@@ -14,7 +14,7 @@ import type { SettingsStore } from './settings';
 
 export interface UiContext {
   state: Store;
-  session: Pick<GameSession, 'setSpeed' | 'select' | 'setFollow' | 'build' | 'demolish' | 'cancelOrder' | 'setRation'>;
+  session: Pick<GameSession, 'setSpeed' | 'select' | 'setFollow' | 'build' | 'demolish' | 'cancelOrder' | 'setRation' | 'setPriority' | 'saveRule' | 'deleteRule' | 'answer' | 'markRead'>;
   /** Draw a person's portrait into a small canvas. */
   portrait(canvas: HTMLCanvasElement, look: Look): void;
   gameView: GameViewApi;

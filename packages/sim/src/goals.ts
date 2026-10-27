@@ -9,6 +9,7 @@ import type { Ctx } from './ctx';
 import { MIN } from './ctx';
 import { ageOf, COMING_OF_AGE } from './people';
 import { worstGrudge } from './memory';
+import { priorityMult } from './policy';
 import type { Cand, Goal, Job, Person } from './types';
 import { compat, isFree, nearbyPeople, peekRel } from './util';
 
@@ -97,6 +98,7 @@ function jobCands(c: Ctx, p: Person, age: number): Cand[] {
     const lv = job.skill ? p.skills[job.skill].lv : 0;
     const dist = distanceTo(c, p, job.goal);
     let score = (job.priority / 3) * (0.7 + 0.06 * lv) * Math.max(0.3, 1 + traitMod(p.traits, 'work')) * (1 / (1 + dist / 40));
+    score *= priorityMult(c, job);
     if (mine) score *= 1.25;
     if (p.needs.rest < 30) score *= 0.6;
     if (p.mood < 30) score *= 0.7;

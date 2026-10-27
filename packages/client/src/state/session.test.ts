@@ -66,6 +66,8 @@ const village: VillageView = {
   orders: [],
   wishes: [],
   status: { foodDays: 12, fuelDays: 20, rationing: 0, blight: 0, alert: null },
+  policy: { priorities: [2, 2, 2, 2, 2, 2, 2], rules: [], offers: [], away: false, crisis: null },
+  reports: [],
 };
 
 function setup() {
@@ -131,6 +133,29 @@ describe('GameSession', () => {
     session.setSpeed(2);
     expect(ws.sent.at(-1)).toEqual({ t: 'speed', speed: 2 });
     expect(store.get('speed')).toBe(1);
+  });
+
+  it('sends priorities, rules, answers and reads, and shows the policy and reports the server sends', () => {
+    const { store, ws, session } = setup();
+    session.setPriority('wood', 4);
+    expect(ws.sent.at(-1)).toEqual({ t: 'priority', group: 'wood', level: 4 });
+    const rule = { id: 0, enabled: true, cond: { metric: 'foodDays' as const, op: '<' as const, value: 7 }, act: { t: 'ration' as const, level: 1 as const } };
+    session.saveRule(rule);
+    expect(ws.sent.at(-1)).toEqual({ t: 'rule', rule });
+    session.deleteRule(3);
+    expect(ws.sent.at(-1)).toEqual({ t: 'rule_del', id: 3 });
+    session.answer(2, 'accept');
+    expect(ws.sent.at(-1)).toEqual({ t: 'answer', offer: 2, option: 'accept' });
+    session.markRead(9);
+    expect(ws.sent.at(-1)).toEqual({ t: 'read', report: 9 });
+    ws.receive({ t: 'view', view: village });
+    const policy = { priorities: [2, 2, 2, 4, 2, 2, 2], rules: [], offers: [], away: true, crisis: null };
+    const reports = [{ id: 1, kind: 'day' as const, day: 0, title: 'Day 1 of Spring', lines: [{ text: 'People: 2.', tone: 'info' as const }], unread: true }];
+    ws.receive({ t: 'upd', time, speed: 1, population: 2, ents: [], policy, reports });
+    expect(store.get('policy')).toEqual(policy);
+    expect(store.get('reports')).toEqual(reports);
+    ws.receive({ t: 'upd', time, speed: 1, population: 2, ents: [] });
+    expect(store.get('policy')).toEqual(policy);
   });
 
   it('reports a request made while offline', () => {

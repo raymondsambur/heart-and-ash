@@ -63,11 +63,13 @@ interface Running {
   lastSaveAt: number;
   /** Entity ids the connected client knows, and the JSON of the slow-changing parts it last received. */
   known: Set<number>;
-  sent: { buildings: string; plots: string; stock: string; roster: string; orders: string; status: string };
+  sent: { buildings: string; plots: string; stock: string; roster: string; orders: string; status: string; policy: string; reports: string };
   /** The villager whose sheet the client is watching, and when it was last sent (real ms). */
   watch: number | null;
   sheetAt: number;
   rosterAt: number;
+  /** Real time (ms) the manager's away stretch ends at, or 0 while a client is connected. */
+  awayUntil: number;
 }
 
 /** Handle the gateway keeps for one websocket. */
@@ -104,9 +106,43 @@ export class VillageHost {
 
   start(): void {
     if (this.timer) return;
+    this.resumeAway();
     this.lastTick = this.now();
     this.timer = setInterval(() => this.tick(), TICK_MS);
     this.timer.unref();
+  }
+
+  /**
+   * Villages whose manager was away when the server stopped pick up where they were: they keep living on their rules for another
+   * `awayCapHours` (the clock of the cap starts again). Villages that were paused, parked in a crisis or past the cap simply wait.
+   */
+  private resumeAway(): void {
+    if (this.config.awayCapHours <= 0) return;
+    const rows = this.db.all<{ id: number; user_id: number }>('SELECT id, user_id FROM villages WHERE snapshot IS NOT NULL');
+    for (const row of rows) {
+      if (this.running.has(row.user_id)) continue;
+      const village = this.db.getVillage(row.user_id);
+      if (!village) continue;
+      const sim = this.load(village);
+      if (!sim.view().policy.away || sim.speed === 0) continue;
+      const r: Running = {
+        village,
+        sim,
+        conn: null,
+        acc: 0,
+        sinceView: 0,
+        dirty: false,
+        lastSaveAt: this.now(),
+        known: new Set(),
+        sent: { buildings: '', plots: '', stock: '', roster: '', orders: '', status: '', policy: '', reports: '' },
+        watch: null,
+        sheetAt: 0,
+        rosterAt: 0,
+        awayUntil: this.now() + this.config.awayCapHours * 3_600_000,
+      };
+      this.running.set(row.user_id, r);
+      this.log.info(`village ${village.id} keeps living on its own after a restart`);
+    }
   }
 
   /** Stop ticking, save every running village and drop the connections. */
@@ -192,7 +228,8 @@ export class VillageHost {
     const r = this.running.get(a.user.id);
     if (r && r.conn === a.conn) {
       this.save(r, 'disconnect');
-      this.running.delete(a.user.id);
+      if (this.config.awayCapHours > 0 && closeCode !== CLOSE_REPLACED) this.goAway(r);
+      else this.running.delete(a.user.id);
     }
     if (closeCode !== null) a.conn.close(closeCode, reason);
   }
@@ -211,6 +248,21 @@ export class VillageHost {
         if (!r) return;
         r.watch = msg.id;
         this.sendSheet(r, this.now());
+        return;
+      }
+      case 'priority':
+      case 'rule':
+      case 'rule_del':
+      case 'answer':
+      case 'read': {
+        if (!a.ready) return void a.conn.send({ t: 'err', code: 'no_hello', text: 'Say hello first.' });
+        const r = this.running.get(a.user.id);
+        if (!r) return;
+        const res = r.sim.command(msg);
+        if (!res.ok) return void a.conn.send({ t: 'err', code: res.code, text: res.text });
+        if (res.text && msg.t !== 'read') a.conn.send({ t: 'note', level: 'info', text: res.text });
+        r.dirty = true;
+        this.sendUpdate(r);
         return;
       }
       case 'ration': {
@@ -262,21 +314,29 @@ export class VillageHost {
     if (a.helloTimer) clearTimeout(a.helloTimer);
     a.helloTimer = null;
     const village = this.ensureVillage(a.user.id);
-    const sim = this.load(village);
+    // A village that kept living while its manager was away is picked up where it is; otherwise it is loaded from its save.
+    const kept = this.running.get(a.user.id);
+    const sim = kept ? kept.sim : this.load(village);
     const r: Running = {
-      village,
+      village: kept?.village ?? village,
       sim,
       conn: a.conn,
       acc: 0,
       sinceView: 0,
-      dirty: false,
-      lastSaveAt: this.now(),
+      dirty: kept?.dirty ?? false,
+      lastSaveAt: kept?.lastSaveAt ?? this.now(),
       known: new Set(),
-      sent: { buildings: '', plots: '', stock: '', roster: '', orders: '', status: '' },
+      sent: { buildings: '', plots: '', stock: '', roster: '', orders: '', status: '', policy: '', reports: '' },
       watch: null,
       sheetAt: 0,
       rosterAt: 0,
+      awayUntil: 0,
     };
+    // The manager is back: the village writes its "while you were away" report (a save that was left away is treated the same way).
+    if (sim.view().policy.away) {
+      sim.command({ t: 'away', on: false });
+      r.dirty = true;
+    }
     this.running.set(a.user.id, r);
     a.ready = true;
     a.conn.send({ t: 'welcome', v: PROTOCOL_VERSION, user: { id: a.user.id, username: a.user.username }, village: { name: village.name, seed: village.seed } });
@@ -284,7 +344,7 @@ export class VillageHost {
     const view = sim.view();
     this.remember(r, view);
     a.conn.send({ t: 'view', view });
-    this.log.info(`${a.user.username} entered ${village.name}`);
+    this.log.info(`${a.user.username} entered ${village.name}${kept ? ' (it kept living while they were away)' : ''}`);
   }
 
   // ---- the tick loop --------------------------------------------------------------------------
@@ -305,8 +365,26 @@ export class VillageHost {
     this.tickAvgMs = this.tickAvgMs * 0.95 + spent * 0.05;
   }
 
+  /** The manager left: the village keeps living at 1x on its rules, for at most `awayCapHours`, and then waits. */
+  private goAway(r: Running): void {
+    r.conn = null;
+    r.acc = 0;
+    r.watch = null;
+    r.awayUntil = this.now() + this.config.awayCapHours * 3_600_000;
+    r.sim.command({ t: 'away', on: true });
+    r.dirty = true;
+    this.log.info(`village ${r.village.id} runs on its own for up to ${this.config.awayCapHours} h`);
+  }
+
   private advance(r: Running, real: number, t: number): void {
-    const speed = r.sim.speed;
+    if (!r.conn && r.awayUntil > 0 && t >= r.awayUntil) {
+      // The cap is reached: the village waits (paused) and is let go from memory; its save is what the manager returns to.
+      r.sim.command({ t: 'speed', speed: 0 });
+      this.save(r, 'away cap');
+      this.running.delete(r.village.userId);
+      return;
+    }
+    const speed = r.conn ? r.sim.speed : Math.min(r.sim.speed, 1);
     if (speed > 0) {
       r.acc += real * speed;
       let steps = 0;
@@ -331,7 +409,7 @@ export class VillageHost {
 
   private remember(r: Running, view: VillageView): void {
     r.known = new Set(view.entities.map((e) => e.id));
-    r.sent = { buildings: JSON.stringify(view.buildings), plots: JSON.stringify(view.plots), stock: JSON.stringify(view.stock), roster: JSON.stringify(view.roster), orders: JSON.stringify({ o: view.orders, w: view.wishes }), status: JSON.stringify(view.status) };
+    r.sent = { buildings: JSON.stringify(view.buildings), plots: JSON.stringify(view.plots), stock: JSON.stringify(view.stock), roster: JSON.stringify(view.roster), orders: JSON.stringify({ o: view.orders, w: view.wishes }), status: JSON.stringify(view.status), policy: JSON.stringify(view.policy), reports: JSON.stringify(view.reports) };
     r.rosterAt = this.now();
   }
 
@@ -366,6 +444,10 @@ export class VillageHost {
     if (s !== r.sent.stock) (msg.stock = v.stock), (r.sent.stock = s);
     const stat = JSON.stringify(v.status);
     if (stat !== r.sent.status) (msg.status = v.status), (r.sent.status = stat);
+    const pol = JSON.stringify(v.policy);
+    if (pol !== r.sent.policy) (msg.policy = v.policy), (r.sent.policy = pol);
+    const rep = JSON.stringify(v.reports);
+    if (rep !== r.sent.reports) (msg.reports = v.reports), (r.sent.reports = rep);
     const t = this.now();
     if (t - r.rosterAt >= ROSTER_EVERY_MS) {
       r.rosterAt = t;

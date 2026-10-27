@@ -433,6 +433,7 @@ describe('persistence', () => {
     await until(() => (server.db.getVillage(id)?.savedAt ?? 0) > 0, 3000, 'an autosave while connected');
     expect(server.villages.stats().running).toBeGreaterThanOrEqual(1);
     await bot.close();
-    expect(server.villages.stats().running).toBe(0);
+    // The village is not let go: it keeps living on its rules while its manager is away (M4), like the other tests' villages.
+    expect(server.villages.stats().running).toBeGreaterThanOrEqual(1);
   });
 });
