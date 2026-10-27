@@ -19,6 +19,7 @@ import { isMoving } from './interp';
 import type { FlashSprite, SpriteBank } from './sprites';
 import { W_NE, W_NW, W_SE, W_SW, type BuildingInfo, type WorldModel } from './world';
 import { makeCanvas } from '../art/canvas';
+import type { Placement } from './api';
 
 const SWAY_CODES = new Set<number>([O.Pine, O.Oak, O.Bamboo, O.Reeds]);
 const SPECIAL_KEYS = new Set(['bandit', 'bandit_boss', 'hollow', 'hollow_monk', 'hollow_brute', 'hollow_lord']);
@@ -67,6 +68,8 @@ export class SceneRenderer {
   private ghosts: (GhostCand & { e: Ent })[] = [];
   /** Your own sprite of this frame, redrawn as an x-ray ghost when scenery covers it. */
   private xray: { spr: FlashSprite; dx: number; dy: number } | null = null;
+  /** A footprint on the ground (laying out a building, or the one that would come down). */
+  placement: Placement | null = null;
   moveTarget: { x: number; y: number } | null = null;
   moveTargetAt = 0;
   selectedId: number | null = null;
@@ -208,6 +211,7 @@ export class SceneRenderer {
 
     // move target marker sits on the ground, under everything sorted
     this.drawMoveTarget(s, ax0, ay0, now);
+    this.drawPlacement(s, ax0, ay0);
     this.particles.update(dt);
     this.particles.drawGround(s, ax0, ay0);
 
@@ -786,6 +790,44 @@ export class SceneRenderer {
     }
     s.globalAlpha = 1;
     s.globalCompositeOperation = 'source-over';
+  }
+
+  /** The footprint of what is being laid out: every tile washed green or red, the door tile ringed. */
+  private drawPlacement(s: CanvasRenderingContext2D, ax0: number, ay0: number): void {
+    const p = this.placement;
+    if (!p) return;
+    const fill = p.tone === 'ok' ? '#7dd36b' : p.tone === 'bad' ? '#e0584a' : '#d9703a';
+    const diamond = (x: number, y: number, inset: number): void => {
+      const cx = (x - y) * 16 - ax0;
+      const cy = (x + y) * 8 - ay0;
+      s.beginPath();
+      s.moveTo(cx, cy - 8 + inset / 2);
+      s.lineTo(cx + 16 - inset, cy);
+      s.lineTo(cx, cy + 8 - inset / 2);
+      s.lineTo(cx - 16 + inset, cy);
+      s.closePath();
+    };
+    s.fillStyle = fill;
+    s.globalAlpha = 0.38;
+    for (let y = p.y; y < p.y + p.d; y++)
+      for (let x = p.x; x < p.x + p.w; x++) {
+        diamond(x, y, 0);
+        s.fill();
+      }
+    s.globalAlpha = 0.9;
+    s.strokeStyle = fill;
+    s.lineWidth = 1;
+    for (let y = p.y; y < p.y + p.d; y++)
+      for (let x = p.x; x < p.x + p.w; x++) {
+        diamond(x, y, 1);
+        s.stroke();
+      }
+    if (p.door) {
+      s.strokeStyle = '#fff1b0';
+      diamond(p.door.x, p.door.y, 5);
+      s.stroke();
+    }
+    s.globalAlpha = 1;
   }
 
   private drawMoveTarget(s: CanvasRenderingContext2D, ax0: number, ay0: number, now: number): void {

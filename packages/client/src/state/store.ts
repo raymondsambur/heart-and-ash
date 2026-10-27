@@ -6,6 +6,12 @@ import type { BuildKind, BuildingDef, FeedEntry, MeResponse, OrderView, PersonBr
 import type { ConnInfo } from '../net/socket';
 
 /** What the pointer does on the map: nothing, lay out a building, or pick something to take down. */
+/** A finished or half-built structure the player has pointed at. */
+export interface Focus {
+  building?: number;
+  plot?: number;
+}
+
 export type MapTool = { t: 'build'; kind: BuildKind; rot: boolean } | { t: 'demolish' } | null;
 
 export interface State {
@@ -27,6 +33,8 @@ export interface State {
   orders: OrderView[];
   wishes: WishView[];
   tool: MapTool;
+  /** The building or field the player last tapped (its progress and the way to take it down show in the build panel). */
+  focus: Focus | null;
   conn: ConnInfo;
   /** Round-trip time to the server in ms, or null before the first answer. */
   latency: number | null;
@@ -52,6 +60,7 @@ export function initialState(): State {
     orders: [],
     wishes: [],
     tool: null,
+    focus: null,
     conn: { state: 'idle', attempt: 0 },
     latency: null,
   };

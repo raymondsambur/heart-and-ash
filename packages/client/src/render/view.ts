@@ -5,7 +5,7 @@
  */
 import type { CharState, ToolKind } from '../art/anim';
 import { TILE_H, TILE_W, type BuildingDef, type PlotDef, type Speed, type TimeView } from '@hearth/shared';
-import type { DecodedWorld, GameViewApi, PickGesture, PickResult, RenderEntity, RenderEntityPatch } from './api';
+import type { DecodedWorld, GameViewApi, PickGesture, PickResult, Placement, RenderEntity, RenderEntityPatch } from './api';
 import { Camera } from './camera';
 import { ChunkManager } from './chunks';
 import { SimClock, WorldClock } from './clock';
@@ -183,6 +183,10 @@ export class GameView implements GameViewApi {
   setSelected(entityId: number | null): void {
     this.selectedId = entityId;
     if (this.sceneR) this.sceneR.selectedId = entityId;
+  }
+
+  setPlacement(p: Placement | null): void {
+    if (this.sceneR) this.sceneR.placement = p;
   }
 
   onPick(cb: (pick: PickResult, gesture: PickGesture) => void): void {

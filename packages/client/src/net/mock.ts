@@ -86,7 +86,7 @@ export function installMock(opts: MockOptions = {}): MockServer {
       if (path === '/api/world' && method === 'GET') {
         if (!user()) return { status: 401, body: { error: 'Not logged in.' } };
         const w = generateWorld(seed);
-        const payload: WorldPayload = { seed, w: w.w, h: w.h, terrain: encodeBase64(w.terrain), objects: encodeBase64(w.objects), blight: encodeBase64(w.blight) };
+        const payload: WorldPayload = { seed, w: w.w, h: w.h, terrain: encodeBase64(w.terrain), objects: encodeBase64(w.objects), blight: encodeBase64(w.blight), center: { ...w.start.center } };
         return { status: 200, body: payload };
       }
       return { status: 404, body: { error: 'Not found.' } };

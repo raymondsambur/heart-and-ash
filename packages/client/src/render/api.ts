@@ -73,6 +73,19 @@ export interface PickResult {
 
 export type PickGesture = 'tap' | 'context' | 'hover';
 
+/** A footprint shown on the ground while the player lays out a building or points at one to take down. */
+export interface Placement {
+  /** Top-left tile and size in tiles. */
+  x: number;
+  y: number;
+  w: number;
+  d: number;
+  /** Green (can be put here), red (cannot) or a warm red wash (the thing that would come down). */
+  tone: 'ok' | 'bad' | 'demolish';
+  /** The tile in front of the door, marked when given. */
+  door?: { x: number; y: number };
+}
+
 export interface GameViewApi {
   /** Begin the render loop (requestAnimationFrame). */
   start(): void;
@@ -98,6 +111,8 @@ export interface GameViewApi {
   setSelected(entityId: number | null): void;
   /** Pointer events resolved to tiles/entities. Mouse: tap=left click, context=right click. Touch: tap, context=long press. */
   onPick(cb: (pick: PickResult, gesture: PickGesture) => void): void;
+  /** Show (or with null hide) a footprint on the ground. */
+  setPlacement(p: Placement | null): void;
 
   centerOn(x: number, y: number, instant?: boolean): void;
   /** 0.5 .. 2.5. */

@@ -10,6 +10,8 @@ import { GameSession } from '../../state/session';
 import type { Store } from '../../state/store';
 import type { UiContext } from '../context';
 import { h } from '../dom';
+import { mountBuild } from '../hud/build';
+import { structureAt } from '../hud/buildLogic';
 import { mountClock } from '../hud/clock';
 import { mountConnection } from '../hud/connection';
 import { mountFeed } from '../hud/feed';
@@ -47,8 +49,9 @@ export function createGameScreen(o: GameScreenOptions): GameScreen {
   const hudTR = h('div', { class: 'hud-tr' });
   const hudBC = h('div', { class: 'hud-bc' });
   const hudBL = h('div', { class: 'hud-bl' });
+  const hudBR = h('div', { class: 'hud-br' });
   const hudLayers = h('div', { class: 'hud-layers' });
-  const hud = h('div', { class: 'hud' }, hudTL, hudTR, hudBC, hudBL, hudLayers);
+  const hud = h('div', { class: 'hud' }, hudTL, hudTR, hudBC, hudBL, hudBR, hudLayers);
   const root = h('div', { class: 'game' }, canvas, hud);
 
   // ---- renderer -----------------------------------------------------------------------------------
@@ -87,11 +90,17 @@ export function createGameScreen(o: GameScreenOptions): GameScreen {
   };
 
   // ---- HUD ---------------------------------------------------------------------------------------------------
-  const parts = [mountVillageCard(hudTL, ui), mountPeople(hudTL, ui), mountClock(hudTR, ui), mountSheet(hudTR, ui), mountTimeControls(hudBC, ui), mountFeed(hudBL, ui), mountConnection(hudLayers, ui, socket)];
+  const buildPanel = mountBuild(hudBR, ui, world);
+  const parts = [mountVillageCard(hudTL, ui), mountPeople(hudTL, ui), mountClock(hudTR, ui), mountSheet(hudTR, ui), mountTimeControls(hudBC, ui), mountFeed(hudBL, ui), buildPanel, mountConnection(hudLayers, ui, socket)];
 
-  // Tapping a person selects them; tapping the ground lets go.
+  // With a build tool in hand the pointer lays out footprints. Otherwise a tap selects a person, or a building to read its
+  // progress; tapping bare ground lets go.
   gameView.onPick((pick, gesture) => {
-    if (gesture === 'tap') session.select(pick.entityId);
+    if (buildPanel.handlePick(pick, gesture)) return;
+    if (gesture !== 'tap') return;
+    const f = pick.entityId === null ? structureAt(store.get('buildings'), store.get('plots'), pick.x, pick.y) : null;
+    store.set('focus', f);
+    session.select(pick.entityId);
   });
 
   // A rejected WebSocket upgrade looks like a plain network failure (the server answers 401 before upgrading).

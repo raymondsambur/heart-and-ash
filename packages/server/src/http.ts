@@ -55,7 +55,7 @@ export interface WorldBlob {
 
 export function buildWorldPayload(world: WorldData): WorldPayload {
   const b64 = (a: Uint8Array) => Buffer.from(a.buffer, a.byteOffset, a.byteLength).toString('base64');
-  return { seed: world.seed, w: world.w, h: world.h, terrain: b64(world.terrain), objects: b64(world.objects), blight: b64(world.blight) };
+  return { seed: world.seed, w: world.w, h: world.h, terrain: b64(world.terrain), objects: b64(world.objects), blight: b64(world.blight), center: { ...world.start.center } };
 }
 
 export function buildWorldBlob(world: WorldData): WorldBlob {

@@ -52,6 +52,8 @@ export interface WorldPayload {
   terrain: string;
   objects: string;
   blight: string;
+  /** The village green: orders are accepted within a radius of it. */
+  center: { x: number; y: number };
 }
 
 // ---------------------------------------------------------------------------
