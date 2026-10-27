@@ -1,4 +1,4 @@
-import type { Ambition, BuildKind, JobGroup, OfferOption, ReportLine, RuleDef, BuildingDef, Dir, Good, Look, NeedId, NpcAct, PlaceKind, PlotDef, Point, SkillId, Speed, TraitId, WeatherKind } from '@hearth/shared';
+import type { Ambition, BuildKind, FloraTile, WallRing, JobGroup, OfferOption, ReportLine, RuleDef, BuildingDef, Dir, Good, Look, NeedId, NpcAct, PlaceKind, PlotDef, Point, SkillId, Speed, TraitId, WeatherKind } from '@hearth/shared';
 
 // ---------------------------------------------------------------------------------------------------
 // Places
@@ -63,6 +63,9 @@ export interface Step {
   /** The tile the step goes to, once resolved. */
   tx?: number;
   ty?: number;
+  /** The tree, bush or patch of grass the work is done at (M6); the person stands next to it and faces it. */
+  ox?: number;
+  oy?: number;
 }
 
 export interface Act {
@@ -372,6 +375,22 @@ export interface SimState {
   tier: 0 | 1 | 2;
   peak: number;
   outside: OutsideState;
+  /** M6: tiles whose tree or bush differs from the map's (with their age in growing days), and the chops left on trees being felled. */
+  flora: FloraEntry[];
+  chops: Record<number, number>;
+  /** M6: the planned loop of the village wall, once it is begun. */
+  ring: WallRing | null;
+  /** The map's width and height in tiles (a village from before M6 has the first, small map). */
+  size: number;
+  /** Terrain that differs from the map (worn roads), tile to terrain code; the traffic that makes and unmakes it, and days a road has been quiet. */
+  ground: Record<number, number>;
+  traffic: Float32Array;
+  quiet: Uint8Array;
+}
+
+/** A cut tree or a picked bush on its way back. */
+export interface FloraEntry extends FloraTile {
+  age: number;
 }
 
 /** The town beyond the map: how it thinks of the village, how it is doing, and when its people come. */

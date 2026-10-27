@@ -6,6 +6,7 @@
  */
 import { BLUEPRINTS, BUILD_RADIUS, canPlace, footprintOf, type BuildKind, type PlaceWorld } from './blueprints';
 import type { BuildingDef, PlotDef } from '../terrain';
+import { planRing, reservedSlots, wallCandidates, type WallRing } from './walls';
 
 export interface Placement {
   x: number;
@@ -26,11 +27,15 @@ export interface PlacementWorld extends PlaceWorld {
 export interface PlacementHints {
   /** Where trouble comes from (the far end of the main street); east of the green when not given. */
   approach?: { x: number; y: number } | null;
+  /** The wall's planned loop, once there is one (walls and gates follow it). */
+  ring?: WallRing | null;
 }
 
 /** How near the green a thing may stand: the plaza and the well keep clear. */
 const MIN_FROM_GREEN: Partial<Record<BuildKind, number>> = { field: 9, wall: 8, watchpost: 10 };
 const DEFAULT_MIN = 5;
+/** Kinds that go inside the wall when there is room (a penalty keeps them out of the open otherwise). */
+const INSIDE_THE_WALL: ReadonlySet<BuildKind> = new Set(['house', 'well', 'warehouse', 'workshop', 'shrine']);
 
 interface Pt {
   x: number;
@@ -42,7 +47,16 @@ const nearest = (list: readonly Pt[], p: Pt): number => list.reduce((m, q) => Ma
 const centroid = (list: readonly Pt[], fallback: Pt): Pt => (list.length ? { x: list.reduce((s, p) => s + p.x, 0) / list.length, y: list.reduce((s, p) => s + p.y, 0) / list.length } : fallback);
 
 /** The best places for a kind of building, best first (at most `limit`). Empty when there is no room. */
-export function placementsFor(pw: PlacementWorld, kind: BuildKind, hints: PlacementHints = {}, limit = 8): Placement[] {
+export function placementsFor(pw0: PlacementWorld, kind: BuildKind, hints: PlacementHints = {}, limit = 8): Placement[] {
+  let pw = pw0;
+  // The wall is one loop with a gate, planned as a whole: its pieces are not scored one by one.
+  if (kind === 'wall' || kind === 'gate') {
+    const ring = hints.ring ?? planRing(pw, hints.approach ?? null);
+    if (!ring) return [];
+    return wallCandidates(pw, kind, ring).slice(0, limit).map((s, i) => ({ x: s.x, y: s.y, rot: s.rot, cost: i }));
+  }
+  // The empty slots of the wall are kept free of everything else.
+  if (hints.ring) pw = { ...pw0, buildings: [...pw0.buildings, ...reservedSlots(pw0, hints.ring)] as unknown as PlacementWorld['buildings'] };
   const { world, buildings, plots } = pw;
   const bp = BLUEPRINTS[kind];
   const green: Pt = world.start.center;
@@ -51,25 +65,19 @@ export function placementsFor(pw: PlacementWorld, kind: BuildKind, hints: Placem
   const houses = ofArt('house');
   const fields = plots.filter((p) => p.kind === 'field').map(mid);
   const posts = ofArt(BLUEPRINTS.watchpost.art);
-  const wallRects = buildings.filter((b) => b.kind === BLUEPRINTS.wall.art);
   const shrines = ofArt(BLUEPRINTS.shrine.art);
   const stores = ofArt(BLUEPRINTS.warehouse.art);
   const wells = [...ofArt(BLUEPRINTS.well.art), ...(world.start.well ? [world.start.well] : [])];
   const rects: { x: number; y: number; w: number; d: number; isWall: boolean }[] = [...buildings.map((b) => ({ x: b.x, y: b.y, w: b.w, d: b.d, isWall: b.kind === BLUEPRINTS.wall.art })), ...plots.map((p) => ({ x: p.x, y: p.y, w: p.w, d: p.d, isWall: false }))];
   const homes = centroid([...houses, ...fields], green);
   const houseHub = centroid(houses, green);
-  // Raiders come from the approach: a wall across their way runs at right angles to it.
-  const across = Math.abs(approach.x - green.x) >= Math.abs(approach.y - green.y);
   const minFrom = MIN_FROM_GREEN[kind] ?? DEFAULT_MIN;
   const out: Placement[] = [];
 
   for (const rot of bp.rotates ? [false, true] : [false]) {
     const { w, d } = footprintOf(kind, rot);
-    // A tile of room around everything, so doors and paths stay clear: but wall segments may touch each other to make a line.
-    const roomy = (x: number, y: number): boolean => !rects.some((r) => {
-      const gap = kind === 'wall' && r.isWall ? 0 : 1;
-      return x - gap < r.x + r.w && x + w + gap > r.x && y - gap < r.y + r.d && y + d + gap > r.y;
-    });
+    // A tile of room around everything, so doors and paths stay clear.
+    const roomy = (x: number, y: number): boolean => !rects.some((r) => x - 1 < r.x + r.w && x + w + 1 > r.x && y - 1 < r.y + r.d && y + d + 1 > r.y);
     for (let y = Math.round(green.y) - BUILD_RADIUS; y <= Math.round(green.y) + BUILD_RADIUS; y++) {
       for (let x = Math.round(green.x) - BUILD_RADIUS; x <= Math.round(green.x) + BUILD_RADIUS; x++) {
         const p: Pt = { x: x + w / 2, y: y + d / 2 };
@@ -102,14 +110,11 @@ export function placementsFor(pw: PlacementWorld, kind: BuildKind, hints: Placem
           case 'watchpost':
             cost += Math.abs(r - 17) + 0.7 * toApproach + Math.max(0, 10 - nearest(posts, p)) * 3;
             break;
-          case 'wall': {
-            cost += Math.abs(r - 15) + 0.8 * toApproach + (rot === across ? 0 : 3);
-            // continue a line: a segment in the same row or column, end to end with this one with one tile between (a segment's door is in front of it, and the gap is a way through)
-            const lined = wallRects.some((b) => (rot ? b.w === 1 && b.x === x && (b.y + b.d + 1 === y || y + d + 1 === b.y) : b.d === 1 && b.y === y && (b.x + b.w + 1 === x || x + w + 1 === b.x)));
-            if (lined) cost -= 8;
-            break;
-          }
         }
+        // Once the wall is planned, what the village needs to keep safe goes inside it when there is room; fields and posts may stand outside.
+        const ring = hints.ring;
+        const inside = !ring || (x > ring.x0 + 1 && x + w - 1 < ring.x1 - 1 && y > ring.y0 + 1 && y + d - 1 < ring.y1 - 1);
+        if (!inside && INSIDE_THE_WALL.has(kind)) cost += 40;
         out.push({ x, y, rot, cost: Math.round(cost * 100) / 100 });
       }
     }

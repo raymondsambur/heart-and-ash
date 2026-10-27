@@ -12,6 +12,7 @@
  * the job board carries haul and build jobs for each and the client would draw a building in every stage).
  */
 import { BUILD_KINDS, GAME_DAY_MS, MAX_ORDERS, SIM_STEP_MS } from '@hearth/shared';
+import { MAP_SIZE } from '@hearth/shared';
 import { createSim, type Sim } from '@hearth/sim';
 import { findSpot } from './manager';
 
@@ -36,7 +37,7 @@ function fillOrders(sim: Sim): number {
 }
 
 function run(people: number, orders: boolean): { perDay: number; perTick: number; orders: number; done: number } {
-  const sim = createSim({ seed: 1337, population: people });
+  const sim = createSim({ seed: 1337, population: people, size: MAP_SIZE });
   sim.step(20_000);
   const placed = orders ? fillOrders(sim) : 0;
   const ticks = (DAYS * GAME_DAY_MS) / SIM_STEP_MS;
@@ -48,7 +49,7 @@ function run(people: number, orders: boolean): { perDay: number; perTick: number
 }
 
 for (const people of SIZES) {
-  const sim = createSim({ seed: 1337, population: people });
+  const sim = createSim({ seed: 1337, population: people, size: MAP_SIZE });
   // Warm up the JIT with a short run that is not measured.
   sim.step(20_000);
   const ticks = (DAYS * GAME_DAY_MS) / SIM_STEP_MS;

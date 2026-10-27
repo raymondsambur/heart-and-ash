@@ -1,5 +1,5 @@
 /** The rules of the build tool that do not need a DOM: where a footprint goes, what it is called, how an order reads. Pure (unit tested). */
-import { BLUEPRINTS, STAGE_TEXT, type StageId, blueprintOfKind, canPlace, footprintOf, totalNeeds, type BuildKind, type BuildingDef, type OrderView, type PlaceWorld, type PlotDef } from '@hearth/shared';
+import { BLUEPRINTS, STAGE_TEXT, type StageId, blueprintOfKind, canPlace, footprintOf, nearestSlot, planRing, reservedSlots, totalNeeds, wallCandidates, wallWhy, type WallRing, type BuildKind, type BuildingDef, type OrderView, type PlaceWorld, type PlotDef } from '@hearth/shared';
 import type { Placement } from '../../render/api';
 import type { Focus } from '../../state/store';
 
@@ -17,8 +17,23 @@ export interface Preview {
 }
 
 /** What the ground looks like with this building laid at this tile (checked with the same rules the sim applies). */
-export function previewFor(pw: PlaceWorld, kind: BuildKind, rot: boolean, tile: { x: number; y: number }): Preview {
+export function previewFor(pw: PlaceWorld, kind: BuildKind, rot: boolean, tile: { x: number; y: number }, ring: WallRing | null = null): Preview {
+  if (kind === 'wall' || kind === 'gate') {
+    // The wall is one loop with a gate: the piece snaps to the next free slot of the loop nearest the pointer.
+    const wpw = pw as Parameters<typeof planRing>[0];
+    const loop = ring ?? planRing(wpw, null);
+    const o0 = originFor(kind, rot, tile);
+    if (!loop) return { placement: { ...o0, tone: 'bad', door: { x: o0.x, y: o0.y + o0.d } }, ok: false, reason: 'There is no room to run a wall right round the village.' };
+    const slot = nearestSlot(wallCandidates(wpw, kind, loop), tile.x, tile.y);
+    if (!slot) return { placement: { ...o0, tone: 'bad', door: { x: o0.x, y: o0.y + o0.d } }, ok: false, reason: wallWhy(wpw, kind, loop) };
+    const { w, d } = footprintOf(kind, slot.rot);
+    return { placement: { x: slot.x, y: slot.y, w, d, tone: 'ok', door: { x: slot.x, y: slot.y + d } }, ok: true };
+  }
   const o = originFor(kind, rot, tile);
+  if (ring) {
+    const blocked = reservedSlots(pw as Parameters<typeof planRing>[0], ring).some((r) => o.x < r.x + r.w && o.x + o.w > r.x && o.y < r.y + r.d && o.y + o.d > r.y);
+    if (blocked) return { placement: { ...o, tone: 'bad', door: { x: o.x + (o.w >> 1), y: o.y + o.d } }, ok: false, reason: 'That is where the village wall is planned to run.' };
+  }
   const r = canPlace(pw, kind, o.x, o.y, rot);
   const door = { x: o.x + (o.w >> 1), y: o.y + o.d };
   return r.ok ? { placement: { ...o, tone: 'ok', door }, ok: true } : { placement: { ...o, tone: 'bad', door }, ok: false, reason: r.reason };

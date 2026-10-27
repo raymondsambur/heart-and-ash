@@ -12,11 +12,12 @@ import type { CarryKind, Dir, Look, NpcAct, NpcRole, WeatherKind } from './types
 import type { NeedId } from './data/needs';
 import type { BuildKind } from './data/blueprints';
 import type { JobGroup, OutsideView, PolicyView, ReportView, RuleDef } from './data/policy';
+import type { FloraTile, GroundTile } from './data/flora';
 import type { Speed } from './constants';
 
 export const WS_PATH = '/ws';
 export const LOGOUT_PATH = '/api/logout';
-export const PROTOCOL_VERSION = 5;
+export const PROTOCOL_VERSION = 6;
 
 // ---------------------------------------------------------------------------
 // HTTP API
@@ -273,6 +274,10 @@ export interface VillageView {
   reports: ReportView[];
   /** The town beyond the map (M5). */
   outside: OutsideView;
+  /** Trees cut and bushes picked: where the ground differs from the map (M6). */
+  flora: FloraTile[];
+  /** Tiles whose ground differs from the map: roads worn by feet and grass where a road was (M6). */
+  ground: GroundTile[];
 }
 
 // ---------------------------------------------------------------------------
@@ -332,6 +337,8 @@ export type S2C =
       policy?: PolicyView;
       reports?: ReportView[];
       outside?: OutsideView;
+      flora?: FloraTile[];
+      ground?: GroundTile[];
       /** The villager list, when it changed (a few times a minute at most). */
       roster?: PersonBrief[];
       /** The order list and the wishes, when they changed. */

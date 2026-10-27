@@ -67,6 +67,11 @@ export const O = {
   Rack: 14,
   /** A standard on its pole (blocks). */
   Standard: 15,
+  /** What is left of a tree that was cut: the stump (walkable). It grows a sapling, and the sapling a tree. */
+  Stump: 16,
+  Sapling: 17,
+  /** A bush that has been picked clean (walkable); it bears again after a while. */
+  BareBush: 18,
   /** Tile occupied by a building footprint. */
   Building: 200,
   /** Wall segment. */
@@ -110,7 +115,9 @@ export type BuildingKind =
   | 'workshop'
   | 'watchpost'
   | 'well'
-  | 'wall';
+  | 'wall'
+  /** The one way through the village wall (M6): a 4-tile gateway, open to walk through. */
+  | 'gateway';
 
 /**
  * Construction state of a building or a plot, as the client draws it. `done` counts finished stages (of the blueprint's

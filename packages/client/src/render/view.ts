@@ -4,7 +4,7 @@
  * Text overlays (name plates) are drawn at device resolution on top.
  */
 import type { CharState, ToolKind } from '../art/anim';
-import { TILE_H, TILE_W, type BuildingDef, type PlotDef, type Speed, type TimeView } from '@hearth/shared';
+import { TILE_H, TILE_W, type BuildingDef, type FloraTile, type GroundTile, type PlotDef, type Speed, type TimeView } from '@hearth/shared';
 import type { DecodedWorld, GameViewApi, PickGesture, PickResult, Placement, RenderEntity, RenderEntityPatch } from './api';
 import { Camera } from './camera';
 import { ChunkManager } from './chunks';
@@ -147,6 +147,14 @@ export class GameView implements GameViewApi {
 
   setPlots(list: PlotDef[]): void {
     this.world?.setPlots(list);
+  }
+
+  setFlora(list: FloraTile[]): void {
+    this.world?.setFlora(list);
+  }
+
+  setGround(list: GroundTile[]): void {
+    this.world?.setGround(list);
   }
 
   applyEntities(delta: { add?: RenderEntity[]; upd?: RenderEntityPatch[]; del?: number[] }): void {

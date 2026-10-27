@@ -53,7 +53,7 @@ export function mountBuild(host: HTMLElement, ui: UiContext, world: DecodedWorld
     const tool = st.get('tool');
     if (!tool) return null;
     if (tool.t === 'build') {
-      const p = previewFor(pw(), tool.kind, tool.rot, tile);
+      const p = previewFor(pw(), tool.kind, tool.rot, tile, st.get('policy').ring);
       ui.gameView.setPlacement(p.placement);
       return { ok: p.ok, reason: p.reason, origin: { x: p.placement.x, y: p.placement.y } };
     }

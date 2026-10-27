@@ -30,6 +30,9 @@ import { clockOf, dayOf } from './calendar';
 import { cancelOrder, computeOverlay, orderDemolish, orderViews, placeOrder, wishes } from './construct';
 import { directorDay, newDirector } from './director';
 import { answerOffer, expireOffers } from './offers';
+import { applyFlora, floraDay, floraView } from './flora';
+import { wallState } from './walls';
+import { applyGround, groundView, roadsDay } from './roads';
 import { newOutside, outsideDay, outsideView } from './outside';
 import { deleteRule, defaultPriorities, runRules, setPriority, setRule } from './policy';
 import { awayReport, baseOf, dayReport, emptyBase, markRead, seasonReport } from './reports';
@@ -54,6 +57,8 @@ export interface CreateSimOptions {
   saved?: SimSnapshot | null;
   /** Number of people in a new village (default 12). The bench uses larger numbers. */
   population?: number;
+  /** Width and height of the map of a new village in tiles (default 96; the game asks for `MAP_SIZE`). A saved village ignores it. */
+  size?: number;
 }
 
 /** The library contract (docs/ARCHITECTURE.md). Pure and deterministic: one seeded rng, no wall clock, no I/O. */
@@ -92,35 +97,54 @@ export function startingKnowledge(sites: SiteIndex, home: { x: number; y: number
 }
 
 export function createSim(opts: CreateSimOptions): Sim {
-  const world = generateWorld(opts.seed);
+  // A saved village keeps the size of the map it was made on (the first maps were 96 x 96); a new one takes the size asked for.
+  const size = opts.saved ? (typeof opts.saved.size === 'number' && opts.saved.size >= 32 ? opts.saved.size : 96) : (opts.size ?? 96);
+  const world = generateWorld(opts.seed, size, size);
   const baseGrid = worldPathGrid(world);
   /** What the village has built on or cleared since the map was made (see construct.ts). */
   const over = new Uint8Array(world.w * world.h);
+  /** The time cost of entering every tile, worked out once and kept (the pathfinder asks for it thousands of times a day). */
+  const costGrid = new Float64Array(world.w * world.h);
+  const tileCost = (x: number, y: number): number => {
+    const o = over[y * world.w + x];
+    if (o === 1) return Infinity;
+    if (o === 2) {
+      const t = TERRAIN_INFO[world.terrain[y * world.w + x]];
+      return t.passable && t.speed > 0 ? 1 / t.speed : Infinity;
+    }
+    return baseGrid.cost(x, y);
+  };
+  const touch = (i: number): void => {
+    costGrid[i] = tileCost(i % world.w, (i / world.w) | 0);
+  };
+  const refreshCosts = (): void => {
+    for (let y = 0, i = 0; y < world.h; y++) for (let x = 0; x < world.w; x++, i++) costGrid[i] = tileCost(x, y);
+  };
   const grid: PathGrid = {
     w: world.w,
     h: world.h,
     cost(x, y) {
-      const o = over[y * world.w + x];
-      if (o === 1) return Infinity;
-      if (o === 2) {
-        const t = TERRAIN_INFO[world.terrain[y * world.w + x]];
-        return t.passable && t.speed > 0 ? 1 / t.speed : Infinity;
-      }
-      return baseGrid.cost(x, y);
+      return x < 0 || y < 0 || x >= world.w || y >= world.h ? Infinity : costGrid[y * world.w + x];
     },
   };
+  const baseTerrain = world.terrain.slice();
   const rng = new Rng(opts.seed ^ 0x51a7e);
   const pending: SimEvent[] = [];
   let st: SimState;
 
   if (opts.saved) {
     if (opts.saved.seed !== opts.seed) throw new Error(`snapshot is for seed ${opts.saved.seed}, not ${opts.seed}`);
-    st = restoreState(opts.saved, rng);
+    st = restoreState(opts.saved, rng, world.w * world.h);
   } else {
     st = emptyState(opts.seed);
   }
+  // The sites (where the forest and the meadows are) come from the map as it was made, so a loaded village and one that never stopped agree;
+  // only then does the ground the village has changed (trees cut, bushes picked) go back onto the map.
   const sites = new SiteIndex(world, st.buildings, st.plots, st.orders);
+  applyFlora(world.objects, st.flora);
+  applyGround(world.terrain, st.ground);
   computeOverlay(world, st.buildings, over);
+  refreshCosts();
 
   // ---- the shared context, refreshed once per step ----
   let byId = new Map<number, Person>();
@@ -145,6 +169,9 @@ export function createSim(opts: CreateSimOptions): Sim {
     temp: 10,
     weather: 'clear',
     over,
+    baseTerrain,
+    touch,
+    refreshCosts,
     open(x, y) {
       if (x < 0 || y < 0 || x >= world.w || y >= world.h) return false;
       const o = over[y * world.w + x];
@@ -223,6 +250,13 @@ export function createSim(opts: CreateSimOptions): Sim {
       tier: 0,
       peak: 0,
       outside: newOutside(rng.fork('outside')),
+      flora: [],
+      chops: {},
+      ring: null,
+      size,
+      ground: {},
+      traffic: new Float32Array(world.w * world.h),
+      quiet: new Uint8Array(world.w * world.h),
     };
   }
 
@@ -285,6 +319,8 @@ export function createSim(opts: CreateSimOptions): Sim {
     dailyLife(c);
     directorDay(c);
     outsideDay(c);
+    floraDay(c);
+    roadsDay(c);
     expireOffers(c);
     checkCrisis();
     for (const p of c.people) reviewAmbitions(c, p);
@@ -404,8 +440,12 @@ export function createSim(opts: CreateSimOptions): Sim {
           away: st.away !== null,
           crisis: st.crisis,
           maxRules: Math.min(MAX_RULES, BAL.tiers.maxRules[st.tier]),
+          ring: st.ring ? { ...st.ring } : null,
+          wall: wallState(c),
         },
         outside: outsideView(c),
+        flora: floraView(st.flora),
+        ground: groundView(st.ground),
         reports: st.reports.map((r) => ({ ...r, lines: r.lines.map((l) => ({ ...l })) })),
       };
     },

@@ -31,7 +31,7 @@ import {
 } from './arch';
 import * as P from './props';
 import * as L from './landmarks';
-import { FULL, plotMarks, staged, wallStaged } from './construction';
+import { FULL, gateStaged, plotMarks, staged, wallStaged } from './construction';
 import type { ConProgress } from './bctx';
 
 export type { BuildingArt, BuildingSpec, Ctx, LightDef, SmokeDef } from './bctx';
@@ -61,6 +61,7 @@ const ROOF_DEFAULT: Record<BuildingKind, string> = {
   dormitory: '#55705f',
   pavilion: '#46706a',
   sectGate: '#a8302a',
+  gateway: '#5b6572',
   workshop: '#3f3a40',
   watchpost: '#585e6c',
   well: '#6b4a3a',
@@ -98,6 +99,7 @@ const MAX_Z: Record<BuildingKind, number> = {
   watchpost: 86,
   well: 40,
   wall: 40,
+  gateway: 50,
 };
 
 /** Vertical stretch per kind (default `BUILDING_ZK`). */
@@ -269,6 +271,9 @@ export function genBuilding(spec: BuildingSpec): BuildingArt {
     }
     case 'wall':
       wallStaged(ctx, FULL);
+      break;
+    case 'gateway':
+      gateStaged(ctx, FULL);
       break;
     default:
       house(ctx);

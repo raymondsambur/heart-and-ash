@@ -65,7 +65,9 @@ export const BAL = {
     onWatch: 1.7,
     watchpost: 4,
     wall: 1.5,
-    wallCap: 6,
+    wallCap: 9,
+    /** A wall round the whole village, closed, with its gate standing: an extra stand against a raid. */
+    loop: 10,
     perRaider: 3.4,
     /** At or above this ratio of defence to attack the raiders are driven off; below `overrun` they break in. */
     repel: 1.15,
@@ -92,12 +94,15 @@ export const BAL = {
     poolCap: 8,
   },
 
+  /** Roads worn by feet (M6): traffic fades by `decay` a day; a tile with at least `on` becomes a road, and a road under `off` for `quietDays` days is given back to the grass. */
+  roads: { on: 55, off: 18, decay: 0.96, quietDays: 10 },
+
   /** Settlement tiers: what a hamlet must have to be a village, and a village to be a town; and what each tier allows. */
   tiers: {
     village: { people: 16, houses: 5 },
     town: { people: 36, houses: 10, watchposts: 1 },
     /** The suggested rules need all twelve from the start, so the rule cap does not depend on the tier (the field is kept to tune). */
-    maxRules: [12, 12, 12],
+    maxRules: [16, 16, 16],
     maxOrders: [8, 14, 24],
   },
 } as const;

@@ -324,7 +324,7 @@ describe('saves', () => {
     sim.command({ t: 'rule', rule: rule({ cond: { metric: 'wood', op: '<', value: 50 }, act: { t: 'priority', group: 'wood', level: 4 } }) });
     sim.command({ t: 'away', on: true });
     const snap = JSON.parse(JSON.stringify(sim.serialize())) as SimSnapshot;
-    expect(snap.v).toBe(6);
+    expect(snap.v).toBe(7);
     const back = createSim({ seed: 12, saved: snap });
     const v = back.view();
     expect(v.policy.priorities[JOB_GROUPS.indexOf('stone')]).toBe(4);

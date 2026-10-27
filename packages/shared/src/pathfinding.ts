@@ -101,6 +101,27 @@ export function nearestWalkable(grid: PathGrid, x: number, y: number, radius = 3
 }
 
 /**
+ * Scratch space for the search, kept between calls: a bigger map makes every call allocate and clear a lot of memory otherwise.
+ * A tile belongs to the search in progress when its `stamp` is the current run; anything else counts as untouched.
+ */
+let scratchSize = 0;
+let stamp = new Uint32Array(0);
+let gScore = new Float32Array(0);
+let parentOf = new Int32Array(0);
+let closedAt = new Uint32Array(0);
+let run = 0;
+
+function scratch(total: number): void {
+  if (scratchSize === total) return;
+  scratchSize = total;
+  stamp = new Uint32Array(total);
+  gScore = new Float32Array(total);
+  parentOf = new Int32Array(total);
+  closedAt = new Uint32Array(total);
+  run = 0;
+}
+
+/**
  * 8-directional A*. Returns the steps after the start tile, or null if unreachable.
  * Diagonals never cut corners. `maxNodes` bounds the search so hostile requests stay cheap.
  */
@@ -109,20 +130,23 @@ export function findPath(grid: PathGrid, sx: number, sy: number, tx: number, ty:
   if (!walkable(grid, tx, ty)) return null;
   const { w, h } = grid;
   const total = w * h;
-  const g = new Float32Array(total).fill(Infinity);
-  const parent = new Int32Array(total).fill(-1);
-  const closed = new Uint8Array(total);
+  scratch(total);
+  const id = ++run;
+  const g = gScore;
+  const parent = parentOf;
   const open = new MinHeap();
   const start = sy * w + sx;
   const goal = ty * w + tx;
+  stamp[start] = id;
   g[start] = 0;
+  parent[start] = -1;
   open.push(0, start);
   let expanded = 0;
 
   while (open.size > 0) {
     const cur = open.pop();
-    if (closed[cur]) continue;
-    closed[cur] = 1;
+    if (closedAt[cur] === id) continue;
+    closedAt[cur] = id;
     if (cur === goal) break;
     if (++expanded > maxNodes) return null;
     const cx = cur % w;
@@ -135,10 +159,11 @@ export function findPath(grid: PathGrid, sx: number, sy: number, tx: number, ty:
       if (!walkable(grid, nx, ny)) continue;
       if (dx !== 0 && dy !== 0 && (!walkable(grid, cx + dx, cy) || !walkable(grid, cx, cy + dy))) continue;
       const ni = ny * w + nx;
-      if (closed[ni]) continue;
+      if (closedAt[ni] === id) continue;
       const step = (dx !== 0 && dy !== 0 ? SQRT2 : 1) * grid.cost(nx, ny);
       const ng = g[cur] + step;
-      if (ng < g[ni]) {
+      if (stamp[ni] !== id || ng < g[ni]) {
+        stamp[ni] = id;
         g[ni] = ng;
         parent[ni] = cur;
         const ddx = Math.abs(nx - tx);
@@ -149,9 +174,10 @@ export function findPath(grid: PathGrid, sx: number, sy: number, tx: number, ty:
     }
   }
 
-  if (parent[goal] === -1) return null;
+  if (stamp[goal] !== id || (goal !== start && parent[goal] === -1)) return null;
   const out: Point[] = [];
   for (let n = goal; n !== start; n = parent[n]) out.push({ x: n % w, y: (n / w) | 0 });
   out.reverse();
+  void h;
   return out;
 }

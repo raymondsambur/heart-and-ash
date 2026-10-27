@@ -2,14 +2,15 @@
  * Living a step: the loop that runs every person every sim step. Needs tick, then the person walks, works, talks or decides.
  * Decisions happen when a plan runs out, when a need turns critical, or every ten game minutes (staggered by id).
  */
-import { ACTIONS, BAL, GAME_HOUR_MS, SLEEP_RECOVERY, traitMod, type Good } from '@hearth/shared';
+import { ACTIONS, BAL, FORAGE_CODES, GAME_HOUR_MS, O, SLEEP_RECOVERY, TREE_CODES, traitMod, type Good } from '@hearth/shared';
 import { HANDLERS, type Done } from './actions';
 import type { Ctx } from './ctx';
 import { HOUR, MIN } from './ctx';
 import { pushFeed } from './feed';
 import { candidates, goalKeyOf, pickCompany, rank } from './goals';
 import { die } from './life';
-import { advanceMove, dist, isMoving, spotNear, stop, walkTo } from './move';
+import { advanceMove, dist, faceOf, isMoving, spotNear, stop, walkTo } from './move';
+import { grassNear, nearestObject, standingTile, type Tile } from './flora';
 import { clamp, computeMood, tickNeeds } from './needs';
 import { ageOf } from './people';
 import { plan, planText } from './planner';
@@ -317,6 +318,15 @@ function resolveSite(c: Ctx, p: Person, step: Step): boolean {
   }
   if (!site) return false;
   step.site = site.id;
+  // Work in the open is done at something real: a tree to fell, a bush to pick, a patch of grass to cut or gather from.
+  const target = workTarget(c, step, site);
+  if (target) {
+    step.ox = target.at.x;
+    step.oy = target.at.y;
+    step.tx = target.stand.x;
+    step.ty = target.stand.y;
+    return true;
+  }
   if (step.at === 'field' && site.plot !== undefined) {
     const plot = c.st.plots.find((x) => x.id === site!.plot);
     if (plot) {
@@ -330,6 +340,23 @@ function resolveSite(c: Ctx, p: Person, step: Step): boolean {
   step.tx = spot.x;
   step.ty = spot.y;
   return true;
+}
+
+const BUSH_ONLY: ReadonlySet<number> = new Set([O.Bush]);
+const FLOWER_ONLY: ReadonlySet<number> = new Set([O.Flowers]);
+
+/** Where an outdoor job is done: the nearest tree to the forest site for a woodcutter, a bush (or flowers, or grass) near the meadow site for the rest. */
+function workTarget(c: Ctx, step: Step, site: Tile): { at: Tile; stand: Tile } | null {
+  const near = (codes: ReadonlySet<number>, reach: number): Tile | null => nearestObject(c, site, codes, reach);
+  let at: Tile | null = null;
+  if (step.a === 'chop_wood') at = near(TREE_CODES, 22);
+  else if (step.a === 'forage') at = near(BUSH_ONLY, 18) ?? near(FLOWER_ONLY, 18) ?? grassNear(c, site);
+  else if (step.a === 'gather_herbs') at = near(FLOWER_ONLY, 18) ?? near(BUSH_ONLY, 18) ?? grassNear(c, site);
+  else if (step.a === 'cut_thatch') at = grassNear(c, site);
+  if (!at) return null;
+  // grass is worked from the tile itself; a tree or a bush from the tile beside it
+  const stand = c.world.objects[at.y * c.world.w + at.x] === O.None ? at : standingTile(c, at.x, at.y);
+  return stand ? { at, stand } : null;
 }
 
 function preconditionsOk(c: Ctx, p: Person, step: Step): string | null {
@@ -474,6 +501,8 @@ function beginAct(c: Ctx, p: Person, step: Step, who?: number): void {
   else if (def.at === 'home' && p.home !== null) p.hidden = true;
   p.act = { step, startedAt: c.now, endsAt: c.now + ms, who };
   p.lastAct = def.verb;
+  // face what is being worked at
+  if (step.ox !== undefined && step.oy !== undefined) p.face = faceOf(step.ox - p.x, step.oy - p.y, p.face);
 }
 
 function progress(c: Ctx, p: Person, dt: number): void {

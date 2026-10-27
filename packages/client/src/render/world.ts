@@ -2,7 +2,7 @@
  * Renderer-side model of the static map plus the dynamic layers (buildings, Blight).
  * Pure data and lookups (unit tested); the renderer reads from it every frame.
  */
-import { O, T, type BuildingDef, type ConView, type PlotDef } from '@hearth/shared';
+import { O, T, type BuildingDef, type ConView, type FloraTile, type GroundTile, type PlotDef } from '@hearth/shared';
 import type { DecodedWorld } from './api';
 
 /** Wall connection bits (tile-axis neighbours): NE = y-1, SE = x+1, SW = y+1, NW = x-1. */
@@ -30,6 +30,11 @@ export class WorldModel {
   /** Called for every tile whose ground changed (the chunk painter repaints around it). */
   onTileChange: ((x: number, y: number) => void) | null = null;
   private readonly baseTerrain: Uint8Array;
+  /** The map's own objects, so cut trees and picked bushes can be put back when the sim says they grew again. */
+  private readonly baseObjects: Uint8Array;
+  private flora: FloraTile[] = [];
+  /** Roads worn by feet and grass where a road was (M6), tile to terrain: under the fields, over the map's own ground. */
+  private worn = new Map<number, number>();
   private readonly baseFarm: number[] = [];
   private overlaid = new Map<number, number>();
   /** Building id + 1 per footprint tile, 0 where none. */
@@ -48,6 +53,7 @@ export class WorldModel {
     this.baseTerrain = world.terrain.slice();
     for (let i = 0; i < this.baseTerrain.length; i++) if (this.baseTerrain[i] === T.Farm) this.baseFarm.push(i);
     this.objects = world.objects;
+    this.baseObjects = world.objects.slice();
     this.blight = new Uint8Array(this.w * this.h);
     this.blight.set(world.blight.subarray(0, this.blight.length));
     this.footprint = new Int16Array(this.w * this.h);
@@ -74,6 +80,7 @@ export class WorldModel {
     const w = this.w;
     const want = new Map<number, number>();
     const ground = (i: number): number => (this.baseTerrain[i] === T.Farm ? T.Grass : this.baseTerrain[i]);
+    for (const [i, t] of this.worn) want.set(i, t);
     for (const i of this.baseFarm) want.set(i, T.Grass);
     this.plotMarks = [];
     for (const p of list) {
@@ -96,6 +103,19 @@ export class WorldModel {
     for (const i of this.overlaid.keys()) if (!want.has(i)) touch(i, this.baseTerrain[i]);
     for (const [i, v] of want) if (v !== this.baseTerrain[i] || this.overlaid.has(i)) touch(i, v);
     this.overlaid = new Map([...want].filter(([i, v]) => v !== this.baseTerrain[i]));
+  }
+
+  /** Roads worn by feet appear, and roads nobody walks any more grow over. */
+  setGround(list: GroundTile[]): void {
+    this.worn = new Map(list.map((g) => [g.i, g.t]));
+    this.setPlots(this.plots);
+  }
+
+  /** The ground the village has changed: trees cut and bushes picked show as stumps, saplings and bare bushes until they grow back. */
+  setFlora(list: FloraTile[]): void {
+    for (const f of this.flora) this.objects[f.i] = this.baseObjects[f.i];
+    this.flora = list;
+    for (const f of list) if (f.i >= 0 && f.i < this.objects.length) this.objects[f.i] = f.code;
   }
 
   inb(x: number, y: number): boolean {

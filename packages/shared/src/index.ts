@@ -18,3 +18,5 @@ export * from './data/blueprints';
 export * from './data/balance';
 export * from './data/policy';
 export * from './data/placement';
+export * from './data/flora';
+export * from './data/walls';

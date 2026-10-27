@@ -66,17 +66,18 @@ export function buildWorldBlob(world: WorldData): WorldBlob {
 
 /** Maps are rebuilt per seed on demand; a handful are kept so repeat loads are free. */
 class WorldBlobCache {
-  private readonly blobs = new Map<number, WorldBlob>();
+  private readonly blobs = new Map<string, WorldBlob>();
   constructor(private readonly max = 16) {}
-  get(seed: number): WorldBlob {
-    let b = this.blobs.get(seed);
+  get(seed: number, size = 96): WorldBlob {
+    const key = `${seed}:${size}`;
+    let b = this.blobs.get(key);
     if (b) {
-      this.blobs.delete(seed);
+      this.blobs.delete(key);
     } else {
-      b = buildWorldBlob(generateWorld(seed));
+      b = buildWorldBlob(generateWorld(seed, size, size));
       if (this.blobs.size >= this.max) this.blobs.delete(this.blobs.keys().next().value!);
     }
-    this.blobs.set(seed, b);
+    this.blobs.set(key, b);
     return b;
   }
 }
@@ -236,7 +237,8 @@ export async function buildHttp(deps: HttpDeps): Promise<FastifyInstance> {
   app.get('/api/world', async (req, reply) => {
     const info = sessionOf(req, reply);
     if (!info) return reply.code(401).send({ error: 'Not logged in.' });
-    const world$ = worlds.get(host.ensureVillage(info.user.id).seed);
+    const village$ = host.ensureVillage(info.user.id);
+    const world$ = worlds.get(village$.seed, host.sizeOf(village$));
     reply.header('etag', world$.etag).header('cache-control', 'private, no-cache').header('vary', 'Accept-Encoding, Cookie');
     if (req.headers['if-none-match'] === world$.etag) return reply.code(304).send();
     reply.type('application/json; charset=utf-8');

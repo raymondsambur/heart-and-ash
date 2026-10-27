@@ -9,6 +9,7 @@
 import {
   CLOSE_BAD_PROTOCOL,
   CLOSE_REPLACED,
+  MAP_SIZE,
   PROTOCOL_VERSION,
   SIM_STEP_MS,
   TICK_MS,
@@ -63,7 +64,7 @@ interface Running {
   lastSaveAt: number;
   /** Entity ids the connected client knows, and the JSON of the slow-changing parts it last received. */
   known: Set<number>;
-  sent: { buildings: string; plots: string; stock: string; roster: string; orders: string; status: string; policy: string; reports: string; outside: string };
+  sent: { buildings: string; plots: string; stock: string; roster: string; orders: string; status: string; policy: string; reports: string; outside: string; flora: string; ground: string };
   /** The villager whose sheet the client is watching, and when it was last sent (real ms). */
   watch: number | null;
   sheetAt: number;
@@ -134,7 +135,7 @@ export class VillageHost {
         dirty: false,
         lastSaveAt: this.now(),
         known: new Set(),
-        sent: { buildings: '', plots: '', stock: '', roster: '', orders: '', status: '', policy: '', reports: '', outside: '' },
+        sent: { buildings: '', plots: '', stock: '', roster: '', orders: '', status: '', policy: '', reports: '', outside: '', flora: '', ground: '' },
         watch: null,
         sheetAt: 0,
         rosterAt: 0,
@@ -171,8 +172,16 @@ export class VillageHost {
     const seed = villageSeed(this.config.worldSeed, userId);
     const name = villageName(new Rng(seed ^ 0xa11ce));
     const row = this.db.createVillage(userId, name, seed, this.now());
+    // A new village gets the big map; one from before (no size on record) keeps the small one it was made on.
+    this.db.kvSet(`village.${row.id}.size`, String(MAP_SIZE));
     this.log.info(`village created: ${row.name}`, { user: userId, seed });
     return row;
+  }
+
+  /** The width and height of a village's map in tiles. */
+  sizeOf(village: VillageRow): number {
+    const v = Number(this.db.kvGet(`village.${village.id}.size`));
+    return Number.isInteger(v) && v >= 32 ? v : 96;
   }
 
   private load(village: VillageRow): Sim {
@@ -193,7 +202,7 @@ export class VillageHost {
         this.db.kvSet(`village.${village.id}.broken.${this.now()}`, village.snapshot ?? '');
       }
     }
-    return createSim({ seed: village.seed });
+    return createSim({ seed: village.seed, size: this.sizeOf(village) });
   }
 
   // ---- connections ----------------------------------------------------------------------
@@ -326,7 +335,7 @@ export class VillageHost {
       dirty: kept?.dirty ?? false,
       lastSaveAt: kept?.lastSaveAt ?? this.now(),
       known: new Set(),
-      sent: { buildings: '', plots: '', stock: '', roster: '', orders: '', status: '', policy: '', reports: '', outside: '' },
+      sent: { buildings: '', plots: '', stock: '', roster: '', orders: '', status: '', policy: '', reports: '', outside: '', flora: '', ground: '' },
       watch: null,
       sheetAt: 0,
       rosterAt: 0,
@@ -409,7 +418,7 @@ export class VillageHost {
 
   private remember(r: Running, view: VillageView): void {
     r.known = new Set(view.entities.map((e) => e.id));
-    r.sent = { buildings: JSON.stringify(view.buildings), plots: JSON.stringify(view.plots), stock: JSON.stringify(view.stock), roster: JSON.stringify(view.roster), orders: JSON.stringify({ o: view.orders, w: view.wishes }), status: JSON.stringify(view.status), policy: JSON.stringify(view.policy), reports: JSON.stringify(view.reports), outside: JSON.stringify(view.outside) };
+    r.sent = { buildings: JSON.stringify(view.buildings), plots: JSON.stringify(view.plots), stock: JSON.stringify(view.stock), roster: JSON.stringify(view.roster), orders: JSON.stringify({ o: view.orders, w: view.wishes }), status: JSON.stringify(view.status), policy: JSON.stringify(view.policy), reports: JSON.stringify(view.reports), outside: JSON.stringify(view.outside), flora: JSON.stringify(view.flora), ground: JSON.stringify(view.ground) };
     r.rosterAt = this.now();
   }
 
@@ -450,6 +459,10 @@ export class VillageHost {
     if (rep !== r.sent.reports) (msg.reports = v.reports), (r.sent.reports = rep);
     const out = JSON.stringify(v.outside);
     if (out !== r.sent.outside) (msg.outside = v.outside), (r.sent.outside = out);
+    const flo = JSON.stringify(v.flora);
+    if (flo !== r.sent.flora) (msg.flora = v.flora), (r.sent.flora = flo);
+    const gro = JSON.stringify(v.ground);
+    if (gro !== r.sent.ground) (msg.ground = v.ground), (r.sent.ground = gro);
     const t = this.now();
     if (t - r.rosterAt >= ROSTER_EVERY_MS) {
       r.rosterAt = t;

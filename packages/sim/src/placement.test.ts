@@ -67,20 +67,6 @@ describe('where a rule puts a building', () => {
     expect(Math.hypot(second.x - first.x, second.y - first.y)).toBeGreaterThanOrEqual(8);
   });
 
-  it('lays walls across the road, and continues a line end to end, leaving a gap to walk through', () => {
-    const k = kit(3, 12);
-    const a = approach(k);
-    // the road runs east and west of the green, so a wall across it runs north to south (laid the other way)
-    expect(Math.abs(a.x - green(k).x)).toBeGreaterThan(Math.abs(a.y - green(k).y));
-    const first = placementsFor(pw(k), 'wall', { approach: a }, 1)[0];
-    expect(first.rot).toBe(true);
-    add(k, BLUEPRINTS.wall.art as BuildingDef['kind'], first.x, first.y, 1, 4);
-    const second = placementsFor(pw(k), 'wall', { approach: a }, 1)[0];
-    expect(second.rot).toBe(true);
-    expect(second.x).toBe(first.x);
-    expect(Math.abs(second.y - first.y)).toBe(5);
-  });
-
   it('keeps a second well among the houses and away from the first, a second shrine away from the first and storehouse near the green', () => {
     const k = kit(3, 12);
     const well = k.sim.world.start.well;

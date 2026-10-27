@@ -68,6 +68,12 @@ Status: built on the branch `m4-orders-rules-reports` (written in the owner's ma
 
 Status: built on the branch `m5-the-outside` (stacked on `m4-orders-rules-reports`, written in the owner's main session); what was built, what differs from the spec and the measured numbers are in `docs/notes/m5.md`. New art and sound are not done.
 
+## M6: a living world
+
+- The wall as one closed loop of joined pieces with a single gate; roads worn by footsteps and grown over when unused; a 160 x 160 map; foragers that pick real bushes and grass; trees that are cut, leave stumps and regrow.
+
+Status: built on the branch `world-living` (written in the owner's main session); what was built, the measured numbers and the limits are in `docs/notes/m6.md`.
+
 ## Detailed specs
 
 - M1: `docs/notes/m1-agent-brain-spec.md` (the villager brain, needs, skills, traits, ambitions, actions, planner, job board, villager sheet, acceptance).

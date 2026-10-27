@@ -7,7 +7,7 @@
  * - The village: `createSim` with the seed from `?seed=` (default 1337). The snapshot is kept in localStorage.
  * - The socket speaks the same protocol as the server: hello -> welcome + view, then `upd` five times a second.
  */
-import { PROTOCOL_VERSION, SIM_STEP_MS, generateWorld, hash32, type C2S, type EntityUpdate, type FeedEntry, type MeResponse, type S2C, type WorldPayload } from '@hearth/shared';
+import { MAP_SIZE, PROTOCOL_VERSION, SIM_STEP_MS, generateWorld, hash32, type C2S, type EntityUpdate, type FeedEntry, type MeResponse, type S2C, type WorldPayload } from '@hearth/shared';
 import { createSim, type Sim, type SimSnapshot } from '@hearth/sim';
 import { encodeBase64 } from './base64';
 import type { HttpResponse, HttpTransport } from './api';
@@ -50,9 +50,9 @@ export function installMock(opts: MockOptions = {}): MockServer {
       saved = null;
     }
     try {
-      sim = createSim({ seed, saved: saved && saved.seed === seed ? saved : null });
+      sim = createSim({ seed, saved: saved && saved.seed === seed ? saved : null, size: MAP_SIZE });
     } catch {
-      sim = createSim({ seed });
+      sim = createSim({ seed, size: MAP_SIZE });
     }
     return sim;
   };
@@ -85,7 +85,9 @@ export function installMock(opts: MockOptions = {}): MockServer {
       }
       if (path === '/api/world' && method === 'GET') {
         if (!user()) return { status: 401, body: { error: 'Not logged in.' } };
-        const w = generateWorld(seed);
+        // the map the in-page village is on: a saved one keeps the size it was made with
+        const size = load().world.w;
+        const w = generateWorld(seed, size, size);
         const payload: WorldPayload = { seed, w: w.w, h: w.h, terrain: encodeBase64(w.terrain), objects: encodeBase64(w.objects), blight: encodeBase64(w.blight), center: { ...w.start.center } };
         return { status: 200, body: payload };
       }
@@ -227,7 +229,7 @@ class MockSocket implements SocketLike {
     const od = JSON.stringify({ o: v.orders, w: v.wishes });
     const orders = od !== this.ordersJson;
     if (orders) this.ordersJson = od;
-    this.emit({ t: 'upd', time: v.time, speed: v.speed, population: v.population, ents, ...(add.length ? { add } : {}), ...(del.length ? { del } : {}), stock: v.stock, status: v.status, ...(this.changed('policy', v.policy) ? { policy: v.policy } : {}), ...(this.changed('reports', v.reports) ? { reports: v.reports } : {}), ...(this.changed('outside', v.outside) ? { outside: v.outside } : {}), buildings: v.buildings, plots: v.plots, ...(roster ? { roster: v.roster } : {}), ...(orders ? { orders: v.orders, wishes: v.wishes } : {}) });
+    this.emit({ t: 'upd', time: v.time, speed: v.speed, population: v.population, ents, ...(add.length ? { add } : {}), ...(del.length ? { del } : {}), stock: v.stock, status: v.status, ...(this.changed('policy', v.policy) ? { policy: v.policy } : {}), ...(this.changed('reports', v.reports) ? { reports: v.reports } : {}), ...(this.changed('outside', v.outside) ? { outside: v.outside } : {}), ...(this.changed('flora', v.flora) ? { flora: v.flora } : {}), ...(this.changed('ground', v.ground) ? { ground: v.ground } : {}), buildings: v.buildings, plots: v.plots, ...(roster ? { roster: v.roster } : {}), ...(orders ? { orders: v.orders, wishes: v.wishes } : {}) });
     const lines: FeedEntry[] = [];
     for (const ev of sim.events()) if (ev.t === 'feed') lines.push({ ...ev.item });
     if (lines.length) this.emit({ t: 'feed', items: lines });

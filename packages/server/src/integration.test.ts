@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
-import { CLOSE_REPLACED, GAME_HOUR_MS, canPlace, PROTOCOL_VERSION, TICK_MS, type C2S, type EntityView, type MeResponse, type S2C, type TimeView, type WorldPayload } from '@hearth/shared';
+import { CLOSE_REPLACED, GAME_HOUR_MS, MAP_SIZE, canPlace, PROTOCOL_VERSION, TICK_MS, type C2S, type EntityView, type MeResponse, type S2C, type TimeView, type WorldPayload } from '@hearth/shared';
 import { SNAPSHOT_VERSION } from '@hearth/sim';
 import { AuthService, SESSION_COOKIE } from './auth';
 import { nullLogger } from './log';
@@ -184,9 +184,10 @@ describe('http', () => {
     const cookie = await signup('Mapper');
     const r = await http<WorldPayload>('GET', '/api/world', { cookie });
     expect(r.status).toBe(200);
-    expect(r.body.w).toBe(96);
-    expect(r.body.h).toBe(96);
-    for (const grid of [r.body.terrain, r.body.objects, r.body.blight]) expect(Buffer.from(grid, 'base64').length).toBe(96 * 96);
+    // a new village is made on the big map
+    expect(r.body.w).toBe(MAP_SIZE);
+    expect(r.body.h).toBe(MAP_SIZE);
+    for (const grid of [r.body.terrain, r.body.objects, r.body.blight]) expect(Buffer.from(grid, 'base64').length).toBe(MAP_SIZE * MAP_SIZE);
   });
 });
 

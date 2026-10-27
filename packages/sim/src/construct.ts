@@ -18,6 +18,12 @@ import {
   clearWork,
   doorTile,
   findPath,
+  footprintOf,
+  nearestSlot,
+  planRing,
+  reservedSlots,
+  wallCandidates,
+  wallWhy,
   needsThrough,
   refundRate,
   stageWork,
@@ -34,6 +40,8 @@ import {
   type WorldData,
 } from '@hearth/shared';
 import { newField } from './actions';
+import { clearBrush, clearFlora } from './flora';
+import { clearRoads } from './roads';
 import { tierReason } from './outside';
 import type { CommandResult, Order, Person } from './types';
 import type { Ctx } from './ctx';
@@ -55,12 +63,17 @@ const fail = (code: string, text: string): CommandResult => ({ ok: false, code, 
 export function computeOverlay(world: Pick<WorldData, 'w' | 'h' | 'objects'>, buildings: readonly BuildingDef[], out: Uint8Array): void {
   out.fill(0);
   for (let i = 0; i < world.objects.length; i++) if (world.objects[i] === O.Building) out[i] = 2;
-  for (const b of buildings) for (let y = b.y; y < b.y + b.d; y++) for (let x = b.x; x < b.x + b.w; x++) if (x >= 0 && y >= 0 && x < world.w && y < world.h) out[y * world.w + x] = 1;
+  for (const b of buildings) {
+    // A finished gate is open to walk through; everything else that stands blocks.
+    const open = b.kind === 'gateway' && !b.con ? 2 : 1;
+    for (let y = b.y; y < b.y + b.d; y++) for (let x = b.x; x < b.x + b.w; x++) if (x >= 0 && y >= 0 && x < world.w && y < world.h) out[y * world.w + x] = open;
+  }
 }
 
 /** Call after anything was raised, finished or removed: the blocked tiles, the sites and the job board follow. */
 export function structuresChanged(c: Ctx): void {
   computeOverlay(c.world, c.st.buildings, c.over);
+  c.refreshCosts();
   c.sites.sync(c.st.buildings, c.st.plots, c.st.orders);
   c.st.jobsAt = -1;
   // People already on their way must not walk through what now stands.
@@ -116,14 +129,32 @@ function plazaTile(c: Ctx): { x: number; y: number } {
 }
 
 /** Order a building raised or a field ploughed. `by` is the villager who asked (their own house), or null for the manager. */
-export function placeOrder(c: Ctx, kind: BuildKind, x: number, y: number, rot: boolean, by: number | null): CommandResult {
+export function placeOrder(c: Ctx, kind: BuildKind, x0: number, y0: number, rot0: boolean, by: number | null): CommandResult {
+  let x = x0;
+  let y = y0;
+  let rot = rot0;
   const st = c.st;
   const bp = BLUEPRINTS[kind];
   if (!bp) return fail('bad_kind', 'The village cannot build that.');
   if (!Number.isInteger(x) || !Number.isInteger(y)) return fail('bad_place', 'Pick a tile.');
   const locked = tierReason(kind, st.tier);
   if (locked) return fail('tier', locked);
+  const wall = kind === 'wall' || kind === 'gate';
+  if (wall) {
+    // The wall is one loop with one gate: a piece goes on the next free slot of the ring, the one nearest to where you pointed.
+    const pw = { world: c.world, buildings: st.buildings, plots: st.plots };
+    const ring = st.ring ?? planRing(pw, approachOf(c));
+    if (!ring) return fail('no_ring', 'There is no room to run a wall right round the village.');
+    const slot = nearestSlot(wallCandidates(pw, kind, ring), x, y);
+    if (!slot) return fail('wall_why', wallWhy(pw, kind, ring));
+    st.ring = ring;
+    x = slot.x;
+    y = slot.y;
+    rot = slot.rot;
+  }
   if (st.orders.length >= Math.min(MAX_ORDERS, BAL.tiers.maxOrders[st.tier])) return fail('too_many', 'There are too many orders at once for a settlement of this size. Cancel one or wait for the builders.');
+  const reserved = !wall && st.ring ? reservedSlots({ world: c.world, buildings: st.buildings, plots: st.plots }, st.ring) : [];
+  if (reserved.some((r) => x < r.x + r.w && x + footprintOf(kind, rot).w > r.x && y < r.y + r.d && y + footprintOf(kind, rot).d > r.y)) return fail('wall_line', 'That is where the village wall is planned to run.');
   const chk = canPlace({ world: c.world, buildings: st.buildings, plots: st.plots }, kind, x, y, rot);
   if (!chk.ok) return fail('cannot_place', chk.reason);
   const { w, d, door } = chk;
@@ -142,6 +173,9 @@ export function placeOrder(c: Ctx, kind: BuildKind, x: number, y: number, rot: b
     order.building = b.id;
   }
   st.orders.push(order);
+  clearFlora(c, x, y, w, d);
+  clearRoads(c, x, y, w, d);
+  if (wall) clearBrush(c, x, y, w, d);
   structuresChanged(c);
 
   // The tile in front must be reachable from the village green with this standing there.
@@ -538,3 +572,9 @@ export function wishes(c: Ctx): WishView[] {
   return out;
 }
 
+
+/** Where trouble comes from: the far end of the main street (a wall puts its gate on that side). */
+export function approachOf(c: Ctx): { x: number; y: number } | null {
+  const e = c.sites.ofKind('edge')[0];
+  return e ? { x: e.x, y: e.y } : null;
+}

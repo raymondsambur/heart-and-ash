@@ -3,6 +3,7 @@
  * decisions the sim puts to the manager (offers). Everything here is data both the sim and the client read.
  */
 import type { BuildKind } from './blueprints';
+import type { WallRing } from './walls';
 
 /** Kinds of work the manager can weigh against each other. Every job on the board belongs to one. */
 export const JOB_GROUPS = ['food', 'wood', 'stone', 'building', 'defence', 'care', 'crafts'] as const;
@@ -57,7 +58,7 @@ export const DEFAULT_PRIORITY = 2;
 // ---------------------------------------------------------------------------------------------------
 
 /** What a rule's condition can look at. */
-export const RULE_METRICS = ['foodDays', 'fuelDays', 'population', 'houses', 'fields', 'shrines', 'watchposts', 'walls', 'wood', 'stone', 'planks', 'mood', 'sick', 'season', 'raid'] as const;
+export const RULE_METRICS = ['foodDays', 'fuelDays', 'population', 'houses', 'fields', 'shrines', 'watchposts', 'walls', 'gates', 'wood', 'stone', 'planks', 'mood', 'sick', 'season', 'raid'] as const;
 export type RuleMetric = (typeof RULE_METRICS)[number];
 
 export const METRIC_LABEL: Record<RuleMetric, string> = {
@@ -69,6 +70,7 @@ export const METRIC_LABEL: Record<RuleMetric, string> = {
   shrines: 'shrines',
   watchposts: 'watch posts',
   walls: 'wall segments',
+  gates: 'gates',
   wood: 'wood in store',
   stone: 'stone in store',
   planks: 'planks in store',
@@ -103,7 +105,7 @@ export interface RuleDef {
 }
 
 /** The most rules any village may keep (a hamlet keeps fewer: see `BAL.tiers.maxRules`). */
-export const MAX_RULES = 12;
+export const MAX_RULES = 16;
 
 /**
  * A set of rules that looks after a village by itself: rations follow the food, the watch gets urgent when raiders are expected,
@@ -120,7 +122,8 @@ export const CARETAKER_RULES: readonly Omit<RuleDef, 'id'>[] = [
   { enabled: true, cond: { metric: 'fuelDays', op: '<', value: 12 }, act: { t: 'priority', group: 'wood', level: 4 } },
   { enabled: true, cond: { metric: 'houses', op: '<', value: 7 }, act: { t: 'build', kind: 'house' } },
   { enabled: true, cond: { metric: 'watchposts', op: '<', value: 2 }, act: { t: 'build', kind: 'watchpost' } },
-  { enabled: true, cond: { metric: 'walls', op: '<', value: 3 }, act: { t: 'build', kind: 'wall' } },
+  { enabled: true, cond: { metric: 'walls', op: '<', value: 60 }, act: { t: 'build', kind: 'wall' } },
+  { enabled: true, cond: { metric: 'gates', op: '<', value: 1 }, act: { t: 'build', kind: 'gate' } },
   { enabled: true, cond: { metric: 'shrines', op: '<', value: 2 }, act: { t: 'build', kind: 'shrine' } },
   { enabled: true, cond: { metric: 'fields', op: '<', value: 3 }, act: { t: 'build', kind: 'field' } },
 ];
@@ -179,7 +182,7 @@ export interface ReportView {
 export const TIER_NAMES = ['hamlet', 'village', 'town'] as const;
 
 /** The tier a kind of building needs: 0 hamlet, 1 village, 2 town. */
-export const TIER_UNLOCK: Record<BuildKind, number> = { house: 0, field: 0, well: 0, shrine: 0, watchpost: 0, wall: 0, warehouse: 1, workshop: 1 };
+export const TIER_UNLOCK: Record<BuildKind, number> = { house: 0, field: 0, well: 0, shrine: 0, watchpost: 0, wall: 0, gate: 0, warehouse: 1, workshop: 1 };
 
 /** The Outside, as the manager sees it. */
 export interface OutsideView {
@@ -212,4 +215,7 @@ export interface PolicyView {
   crisis: string | null;
   /** How many rules and orders the settlement's tier allows. */
   maxRules: number;
+  /** The planned loop of the village wall, once it is begun, and how far it is (M6). */
+  ring: WallRing | null;
+  wall: { built: number; total: number; gate: boolean; closed: boolean } | null;
 }

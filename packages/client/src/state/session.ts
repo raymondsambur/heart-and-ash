@@ -108,6 +108,8 @@ export class GameSession {
         view.clearEntities();
         view.setBuildings(v.buildings);
         view.setPlots(v.plots);
+        view.setFlora(v.flora);
+        view.setGround(v.ground);
         view.applyEntities({ add: v.entities.map(toRenderEntity) });
         view.setSpeed(v.speed);
         view.setTime(v.time);
@@ -126,6 +128,8 @@ export class GameSession {
         view.applyEntities({ add: m.add?.map(toRenderEntity), upd: m.ents.map(toRenderPatch), del: m.del });
         if (m.buildings) view.setBuildings(m.buildings);
         if (m.plots) view.setPlots(m.plots);
+        if (m.flora) view.setFlora(m.flora);
+        if (m.ground) view.setGround(m.ground);
         view.setSpeed(m.speed);
         view.setTime(m.time);
         const patch: Parameters<Store['patch']>[0] = { time: m.time, speed: m.speed, population: m.population };
