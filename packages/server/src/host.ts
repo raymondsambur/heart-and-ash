@@ -334,7 +334,7 @@ export class VillageHost {
     for (const e of v.entities) {
       seen.add(e.id);
       if (!r.known.has(e.id)) add.push(e);
-      ents.push({ id: e.id, x: e.x, y: e.y, nx: e.nx, ny: e.ny, step: e.step, route: e.route, face: e.face, state: e.state, act: e.act, hidden: e.hidden });
+      ents.push({ id: e.id, x: e.x, y: e.y, nx: e.nx, ny: e.ny, step: e.step, route: e.route, face: e.face, state: e.state, act: e.act, carry: e.carry, hidden: e.hidden });
     }
     const del = [...r.known].filter((id) => !seen.has(id));
     r.known = seen;

@@ -8,7 +8,7 @@
  * Keep this file additive: add fields and messages, avoid renaming.
  */
 import type { BuildingDef, PlotDef } from './terrain';
-import type { Dir, Look, NpcAct, NpcRole, WeatherKind } from './types';
+import type { CarryKind, Dir, Look, NpcAct, NpcRole, WeatherKind } from './types';
 import type { NeedId } from './data/needs';
 import type { BuildKind } from './data/blueprints';
 import type { Speed } from './constants';
@@ -80,6 +80,8 @@ export interface EntityView {
   role?: NpcRole;
   /** What they are doing while they stand still; the renderer plays a matching animation. */
   act?: NpcAct;
+  /** Something heavy in their hands (for the hauling pose). */
+  carry?: CarryKind;
   /** Indoors (not drawn). */
   hidden?: true;
   /** A child (drawn smaller). */
@@ -87,7 +89,7 @@ export interface EntityView {
 }
 
 /** What changes about an entity from one update to the next (the rest is sent once, in `view` or `add`). */
-export type EntityUpdate = Pick<EntityView, 'id' | 'x' | 'y' | 'nx' | 'ny' | 'step' | 'route' | 'face' | 'state' | 'act' | 'hidden'>;
+export type EntityUpdate = Pick<EntityView, 'id' | 'x' | 'y' | 'nx' | 'ny' | 'step' | 'route' | 'face' | 'state' | 'act' | 'carry' | 'hidden'>;
 
 export interface TimeView {
   /** Hour of the day, 0 up to 24. */

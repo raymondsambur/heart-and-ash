@@ -1,5 +1,5 @@
 /** What the client is shown: entity views, the villager list, the sheet and the plain-words explanations. */
-import { ACTIONS, AMBITIONS, NEEDS, NEED_IDS, SKILL_IDS, SKILL_LABEL, TRAITS, xpToNext, GOOD_LABEL, type EntityView, type NpcAct, type PersonBrief, type PersonSheet, type SheetRelation, type SkillId } from '@hearth/shared';
+import { ACTIONS, AMBITIONS, NEEDS, NEED_IDS, SKILL_IDS, SKILL_LABEL, TRAITS, xpToNext, GOOD_LABEL, type CarryKind, type EntityView, type NpcAct, type PersonBrief, type PersonSheet, type SheetRelation, type SkillId } from '@hearth/shared';
 import { describe } from './ambitions';
 import type { Ctx } from './ctx';
 import { needPhrase, lowestNeed, computeMood } from './needs';
@@ -15,6 +15,9 @@ const SOURCE_WORD: Record<string, string> = {
   social: 'someone else',
   danger: 'danger',
 };
+
+/** Goods you can see in somebody's hands. */
+const CARRY_OF: Partial<Record<string, CarryKind>> = { planks: 'plank', wood: 'log', stone: 'stone', thatch: 'bundle' };
 
 /** How an action looks to the renderer while the person stands still. */
 const ACT_VIEW: Record<string, NpcAct> = {
@@ -52,7 +55,7 @@ const ACT_VIEW: Record<string, NpcAct> = {
   chop_wood: 'mine',
   quarry_stone: 'mine',
   mine_ore: 'mine',
-  saw_planks: 'sweep',
+  saw_planks: 'saw',
   build: 'build',
   demolish: 'build',
   clear_rubble: 'dig',
@@ -108,6 +111,8 @@ export function entityView(c: Ctx, p: Person): EntityView {
     const a = viewAct(p);
     if (a) e.act = a;
   }
+  const load = p.carrying ? CARRY_OF[p.carrying.good] : undefined;
+  if (load) e.carry = load;
   if (p.hidden) e.hidden = true;
   if (ageOf(p, c.day) < COMING_OF_AGE) e.child = true;
   return e;

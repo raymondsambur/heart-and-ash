@@ -552,7 +552,7 @@ export class SceneRenderer {
       spec.faction = faction;
       spec.elite = v.elite ?? 0;
       spec.special = special;
-      spec.tool = pk.tool ?? (role === 'smith' || role === 'alchemist' || role === 'innkeeper' ? 'hammer' : undefined);
+      spec.tool = pk.tool ?? v.carry ?? (role === 'smith' || role === 'alchemist' || role === 'innkeeper' ? 'hammer' : undefined);
       spec.gear = gearFor(v.gear, role, special !== 'none' ? special : null);
       spec.variant = pk.variant;
       spec.wind = this.windLvl;

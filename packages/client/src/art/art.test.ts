@@ -206,6 +206,16 @@ describe('characters, monsters and nodes', () => {
         }
       }
   });
+  it('shows a load in the hands while walking and standing, and a saw at work', () => {
+    const base = (state: CharState, tool?: 'plank' | 'log' | 'stone' | 'bundle' | 'saw') => genCharacter({ look: look(4), state, dir: 0, frame: 1, role: 'villager', tool });
+    for (const tool of ['plank', 'log', 'stone', 'bundle'] as const)
+      for (const state of ['walk', 'idle'] as const) {
+        const a = base(state);
+        const b = base(state, tool);
+        expect(b.pb.px.some((v, i) => v !== a.pb.px[i]), `${tool} ${state}`).toBe(true);
+      }
+    expect(base('work', 'saw').pb.px.some((v, i) => v !== base('work', 'hammer' as never).pb.px[i])).toBe(true);
+  });
   it('mirrors west facings and scales elites', () => {
     const e = genCharacter({ look: look(3), state: 'idle', dir: 0, frame: 0 });
     const w = genCharacter({ look: look(3), state: 'idle', dir: 1, frame: 0 });

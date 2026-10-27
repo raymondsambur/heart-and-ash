@@ -127,6 +127,7 @@ export const ACT_STATE: Record<NpcAct, { state: CharState; tool?: ToolKind }> = 
   serve: { state: 'trade' },
   build: { state: 'work', tool: 'hammer' },
   dig: { state: 'work', tool: 'pick' },
+  saw: { state: 'work', tool: 'saw' },
 };
 
 /** Nearest friendly entity within `r` tiles (cached per entity for ~1.2 s). Returns its id or -1. */

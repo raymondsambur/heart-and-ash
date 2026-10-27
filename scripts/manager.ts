@@ -42,6 +42,7 @@ export interface Manager {
 
 export function createManager(): Manager {
   const placed: Record<string, number> = {};
+  let tornDown = 0;
   const order = (sim: Sim, kind: BuildKind): boolean => {
     const spot = findSpot(sim, kind);
     if (!spot) return false;
@@ -66,9 +67,9 @@ export function createManager(): Manager {
       if (!raising('workshop') && count('workshop') < 1 && pop >= 18) return void order(sim, 'workshop');
       if (!raising('watchpost') && count('watchpost') < 1 && day >= 150) return void order(sim, 'watchpost');
       if (!raising('wall') && count('wall') < 2 && day >= 220) return void order(sim, 'wall');
-      // Once in a while an old wall segment comes down again (to try demolition and the rubble).
+      // Once, late on, an old wall segment comes down again (to try demolition and the rubble).
       const old = v.buildings.find((b) => b.kind === 'wall' && !b.con);
-      if (old && day >= 300 && !v.orders.length) void sim.command({ t: 'demolish', building: old.id });
+      if (old && day >= 300 && !v.orders.length && tornDown < 1 && sim.command({ t: 'demolish', building: old.id }).ok) tornDown++;
     },
   };
 }

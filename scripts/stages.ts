@@ -21,7 +21,7 @@ const KINDS: [BuildKind, BuildingKind, number, number][] = [
   ['well', 'well', 1, 1],
   ['wall', 'wall', 4, 1],
 ];
-const SCALE = 2;
+const SCALE = 1;
 const PER_ROW = 7;
 const GRASS = [0x6d, 0x93, 0x4c];
 const spec = (kind: BuildingKind, w: number, d: number) => ({ id: 11, kind, w, d, door: { dx: Math.floor(w / 2), dy: d }, season: 1, roofCss: null, accentCss: null, fallen: false });

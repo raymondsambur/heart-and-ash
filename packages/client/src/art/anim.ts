@@ -36,7 +36,11 @@ export type CharState =
   | 'shelter'
   | 'mourn';
 
-export type ToolKind = 'hammer' | 'hoe' | 'pick' | 'sickle' | 'herb' | 'broom' | 'cloth' | 'fan' | 'ladle' | 'chop' | 'bowl' | 'abacus';
+export type ToolKind = 'hammer' | 'hoe' | 'pick' | 'sickle' | 'herb' | 'broom' | 'cloth' | 'fan' | 'ladle' | 'chop' | 'bowl' | 'abacus' | 'saw' | CarryKind;
+
+/** Something carried on the way to a building site (shown in both hands while walking or standing). */
+export type CarryKind = 'plank' | 'log' | 'stone' | 'bundle';
+export const CARRY_KINDS: ReadonlySet<string> = new Set<CarryKind>(['plank', 'log', 'stone', 'bundle']);
 
 export const FRAME_COUNTS: Record<CharState, number> = {
   idle: 8,
@@ -1085,6 +1089,17 @@ function workPose(p: Pose, inp: PoseInput, f: number): void {
         [7, 34, -60, -3, 36, 1.5, 2],
       ];
       break;
+    case 'saw':
+      // long strokes back and forth with the other hand steadying the board
+      T = [
+        [9, 33, -8, 1, 34, 1, 1.5],
+        [12, 33, -8, 1, 34, 2, 1.5],
+        [15, 33, -8, 1, 34, 3, 1.8],
+        [12, 33, -8, 1, 34, 2, 1.5],
+        [9, 33, -8, 1, 34, 1, 1.5],
+        [7, 33, -8, 1, 34, 0.5, 1.2],
+      ];
+      break;
     case 'herb':
       T = [
         [10, 38, 0, -2, 40, 3, 3],
@@ -1131,6 +1146,16 @@ function workPose(p: Pose, inp: PoseInput, f: number): void {
 export function poseFor(inp: PoseInput): Pose {
   const n = FRAME_COUNTS[inp.state];
   const p = raw(inp, inp.frame);
+  if (inp.tool && CARRY_KINDS.has(inp.tool) && (inp.state === 'walk' || inp.state === 'idle')) {
+    // a load held in front with both hands
+    p.tool = inp.tool;
+    p.rhx = 4.6;
+    p.rhy = 33.5 + p.bob;
+    p.lhx = -3.2;
+    p.lhy = 34.5 + p.bob;
+    p.wAng = inp.tool === 'plank' || inp.tool === 'log' ? -14 : 0;
+    p.twoHand = false;
+  }
   if (n > 1 && inp.state !== 'idle' && inp.state !== 'walk' && inp.state !== 'run') {
     const q = raw(inp, Math.max(0, inp.frame - 1));
     const dl = p.lean - q.lean + (p.dx - q.dx);

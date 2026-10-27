@@ -6,7 +6,7 @@
  * the optional fields (beasts, harvest nodes, gear, battle sides) are kept because later milestones bring wildlife and raiders back.
  */
 import type { CharState, ToolKind } from '../art/anim';
-import type { ActorState, BuildingDef, Dir, GearLook, Look, NodeKind, NpcAct, NpcRole, PlotDef, Speed, TimeView, WeaponType, WorldPayload } from '@hearth/shared';
+import type { ActorState, BuildingDef, CarryKind, Dir, GearLook, Look, NodeKind, NpcAct, NpcRole, PlotDef, Speed, TimeView, WeaponType, WorldPayload } from '@hearth/shared';
 
 /** World payload with its grids decoded from base64. */
 export interface DecodedWorld {
@@ -36,6 +36,8 @@ export interface RenderEntity {
   look?: Look;
   role?: NpcRole;
   act?: NpcAct;
+  /** A load in their hands. */
+  carry?: CarryKind;
   /** Sprite key for monsters and nodes, e.g. 'wolf', 'bandit', 'herb'. */
   sprite?: string;
   nodeKind?: NodeKind;

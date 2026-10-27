@@ -197,7 +197,7 @@ class MockSocket implements SocketLike {
     const sim = this.sim;
     if (!sim) return;
     const v = sim.view();
-    const ents: EntityUpdate[] = v.entities.map((e) => ({ id: e.id, x: e.x, y: e.y, nx: e.nx, ny: e.ny, step: e.step, route: e.route, face: e.face, state: e.state, act: e.act, hidden: e.hidden }));
+    const ents: EntityUpdate[] = v.entities.map((e) => ({ id: e.id, x: e.x, y: e.y, nx: e.nx, ny: e.ny, step: e.step, route: e.route, face: e.face, state: e.state, act: e.act, carry: e.carry, hidden: e.hidden }));
     const add = v.entities.filter((e) => !this.known.has(e.id));
     const seen = new Set(v.entities.map((e) => e.id));
     const del = [...this.known].filter((id) => !seen.has(id));
