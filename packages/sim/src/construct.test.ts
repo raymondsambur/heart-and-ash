@@ -441,7 +441,8 @@ describe('saves with construction in them', () => {
     expect(JSON.stringify(b.view().buildings)).toBe(JSON.stringify(a.view().buildings));
     a.step(GAME_DAY_MS * 2);
     b.step(GAME_DAY_MS * 2);
-    expect(JSON.stringify(b.serialize())).toBe(JSON.stringify(a.serialize()));
+    // Compared as data: a property that was `undefined` in the live state is gone after a round trip, which only changes key order.
+    expect(JSON.parse(JSON.stringify(b.serialize()))).toEqual(JSON.parse(JSON.stringify(a.serialize())));
   });
 
   it('upgrades a version 2 snapshot (M1, no orders) and lets it build', () => {

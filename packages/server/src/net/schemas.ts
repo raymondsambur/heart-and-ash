@@ -23,6 +23,7 @@ export const c2sSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('build'), kind: z.enum(BUILD_KINDS), x: int(0, 255), y: int(0, 255), rot: z.boolean().optional() }),
   z.object({ t: z.literal('demolish'), building: int(0, 2 ** 31 - 1).optional(), plot: int(0, 2 ** 31 - 1).optional() }),
   z.object({ t: z.literal('cancel'), order: int(0, 2 ** 31 - 1) }),
+  z.object({ t: z.literal('ration'), level: z.union([z.literal(0), z.literal(1), z.literal(2)]) }),
   z.object({ t: z.literal('ping'), n: int(0, 2 ** 31 - 1) }),
 ]);
 

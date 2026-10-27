@@ -54,6 +54,11 @@ export function createManager(): Manager {
     placed,
     day(sim) {
       const v = sim.view();
+      // Rations: tighten when the store is thin, ease off when it is comfortable again.
+      const level = v.status.rationing;
+      if (level === 0 && v.status.foodDays < 7) sim.command({ t: 'ration', level: 1 });
+      else if (level === 1 && v.status.foodDays < 3.5) sim.command({ t: 'ration', level: 2 });
+      else if (level > 0 && v.status.foodDays > 14) sim.command({ t: 'ration', level: 0 });
       if (v.orders.filter((o) => o.mode !== 'rubble').length >= 3) return;
       const day = Math.floor(sim.inspect().totalMs / GAME_DAY_MS);
       const count = (kind: string): number => v.buildings.filter((b) => b.kind === kind).length;
@@ -65,8 +70,9 @@ export function createManager(): Manager {
       if (!raising('well') && count('well') < 1 && pop >= 16) return void order(sim, 'well');
       if (!raising('warehouse') && count('warehouse') < 2 && pop >= 22) return void order(sim, 'warehouse');
       if (!raising('workshop') && count('workshop') < 1 && pop >= 18) return void order(sim, 'workshop');
-      if (!raising('watchpost') && count('watchpost') < 1 && day >= 150) return void order(sim, 'watchpost');
-      if (!raising('wall') && count('wall') < 2 && day >= 220) return void order(sim, 'wall');
+      // Defence grows with the village and with the raids: a post for every ten people (up to three) and a wall for every eight (up to four).
+      if (!raising('watchpost') && count('watchpost') < Math.min(3, Math.max(1, Math.floor(pop / 10))) && day >= 45) return void order(sim, 'watchpost');
+      if (!raising('wall') && count('wall') < Math.min(4, Math.max(2, Math.floor(pop / 8))) && day >= 120) return void order(sim, 'wall');
       // Once, late on, an old wall segment comes down again (to try demolition and the rubble).
       const old = v.buildings.find((b) => b.kind === 'wall' && !b.con);
       if (old && day >= 300 && !v.orders.length && tornDown < 1 && sim.command({ t: 'demolish', building: old.id }).ok) tornDown++;

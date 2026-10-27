@@ -11,7 +11,7 @@ const SHORT = 5;
 const LONG = 40;
 
 /** Feed kinds that deserve a colour. */
-const TONE: Record<string, string> = { death: 'bad', crime: 'bad', fight: 'warn', wound: 'warn', illness: 'warn', birth: 'good', love: 'good', ambition: 'good', arrive: 'info' };
+const TONE: Record<string, string> = { death: 'bad', crime: 'bad', fight: 'warn', wound: 'warn', illness: 'warn', birth: 'good', love: 'good', ambition: 'good', arrive: 'info', raid: 'bad', plague: 'bad', cold: 'warn', harvest: 'warn', blight: 'warn', refugees: 'info', master: 'good' };
 
 export function mountFeed(host: HTMLElement, ui: UiContext): { destroy(): void } {
   const prefs = loadJson<{ open: boolean }>(KEY, { open: false });

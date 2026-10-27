@@ -285,6 +285,8 @@ export interface FeedItem {
 
 export type SimCommand =
   | { t: 'speed'; speed: Speed }
+  /** How much of a portion each person is given: 0 normal, 1 tight, 2 strict (docs/notes/m3.md). */
+  | { t: 'ration'; level: 0 | 1 | 2 }
   /** Order a building raised (or a field ploughed) with its top-left corner at (x, y). */
   | { t: 'build'; kind: BuildKind; x: number; y: number; rot?: boolean }
   | { t: 'demolish'; building?: number; plot?: number }
@@ -338,7 +340,27 @@ export interface SimState {
   stats: Record<string, number>;
   /** Newcomers still to come from the fixed pool. */
   pool: number;
-  /** The act shown to the renderer for each person is derived, not stored. */
+  /** Rationing level the manager set (0 normal, 1 tight, 2 strict). */
+  rationing: 0 | 1 | 2;
+  /** Day the hearths were last lit (they are lit once an evening). */
+  hearthDay: number;
+  /** The events director's memory (M3). */
+  dir: DirectorState;
+}
+
+/** What the events director remembers between days. */
+export interface DirectorState {
+  /** Tiles the Blight has crept in, and the day of its next step. */
+  blight: number;
+  blightDay: number;
+  /** A raid on its way: the day it arrives and how many raiders. Null when none is expected. */
+  raid: { day: number; size: number; warned: boolean } | null;
+  /** The day the next raid is meant to come (set after each one). */
+  nextRaid: number;
+  /** Last day each kind of event happened, to keep them apart. */
+  last: Record<string, number>;
+  /** A travelling master who is staying: who, what they teach and until which day. */
+  master: { name: string; skill: SkillId; until: number } | null;
 }
 
 export type { NpcAct };

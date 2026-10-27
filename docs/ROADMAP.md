@@ -48,6 +48,8 @@ Status: built on the branch `m2-construction`; what was built, what differs from
 
 Done when: the soak script shows survival rates in a sensible range across seeds, and a winter without preparation hurts while a prepared village comes through.
 
+Status: built on the branch `m3-economy` (written in the owner's main session, not a cloud session); what was built, what differs from the spec and the measured numbers are in `docs/notes/m3.md`.
+
 ## M4: orders, rules and reports
 
 - The rules editor (condition, action) and priority sliders; rules are what runs the village while you are away.

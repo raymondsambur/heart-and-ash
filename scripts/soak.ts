@@ -40,7 +40,14 @@ interface Result {
   placed: Record<string, number>;
   standing: Record<string, number>;
   orders: number;
+  /** Population at the end of each game year (index 0 is year 1). */
+  byYear: number[];
+  /** First year the village fell below `COLLAPSE` people, or 0. */
+  collapsedYear: number;
 }
+
+/** A village with fewer people than this has collapsed: too few to farm, guard and raise children. */
+const COLLAPSE = 6;
 
 function standingOf(list: readonly { kind: string; con?: unknown }[]): Record<string, number> {
   const out: Record<string, number> = {};
@@ -62,6 +69,8 @@ function run(seed: number): Result {
   let moodMin = 100;
   let foodMin = Infinity;
   const feed: Record<string, number> = {};
+  const byYear: number[] = [];
+  let collapsedYear = 0;
   const days = YEARS * DAYS_PER_YEAR;
   // Sample at noon (the village starts at 06:00), when everyone able should be at something.
   sim.step(6 * GAME_HOUR_MS);
@@ -91,17 +100,27 @@ function run(seed: number): Result {
       if (p.blocked) stuckMax = Math.max(stuckMax, (st.totalMs - p.blocked.since) / GAME_DAY_MS);
     }
     for (const e of sim.events()) if (e.t === "feed") { feed[e.item.kind] = (feed[e.item.kind] ?? 0) + 1; if (process.env.SOAK_DEATHS && e.item.kind === "death") console.log("   ", e.item.text); }
-    if (n === 0) break;
+    if (d % DAYS_PER_YEAR === 0) {
+      byYear.push(n);
+      if (!collapsedYear && n < COLLAPSE) collapsedYear = d / DAYS_PER_YEAR;
+    }
+    if (n === 0) {
+      while (byYear.length < YEARS) byYear.push(0);
+      collapsedYear ||= Math.ceil(d / DAYS_PER_YEAR);
+      break;
+    }
   }
   const st = sim.inspect();
   const stuckAmbitions = st.people.reduce((s, p) => s + p.ambitions.filter((a) => !a.ended && a.stuck).length, 0);
-  return { seed, end: st.people.filter((p) => !p.away).length, low, lowDay, stats: st.stats, feed, stuckMax, idleMax, stuckAmbitions, moodAvg: moodSum / Math.max(1, moodN), moodMin, foodMin, ms: performance.now() - t0, placed: manager.placed, standing: standingOf(st.buildings), orders: st.orders.length };
+  return { seed, end: st.people.filter((p) => !p.away).length, low, lowDay, stats: st.stats, feed, stuckMax, idleMax, stuckAmbitions, moodAvg: moodSum / Math.max(1, moodN), moodMin, foodMin, ms: performance.now() - t0, placed: manager.placed, standing: standingOf(st.buildings), orders: st.orders.length, byYear, collapsedYear };
 }
 
 const total: Record<string, number> = {};
+const results: Result[] = [];
 console.log(`soak: ${YEARS} game years (${YEARS * DAYS_PER_YEAR} days) on seeds ${SEEDS.join(', ')}, starting population ${POP}`);
 for (const seed of SEEDS) {
   const r = run(seed);
+  results.push(r);
   const s = r.stats;
   for (const [k, v] of Object.entries(s)) total[k] = (total[k] ?? 0) + v;
   const deaths = Object.entries(s).filter(([k]) => k.startsWith('death_')).map(([k, v]) => `${k.slice(6)} ${v}`).join(', ') || 'none';
@@ -113,9 +132,25 @@ for (const seed of SEEDS) {
   console.log(`  ambitions: fulfilled ${s.ambitions_fulfilled ?? 0}, abandoned ${s.ambitions_abandoned ?? 0}, stuck at the end ${r.stuckAmbitions}`);
   console.log(`  building: ${manage ? `orders placed ${Object.entries(r.placed).map(([k, v]) => `${k} ${v}`).join(', ') || 'none'}; ` : ''}finished ${s.buildings_finished ?? 0}, taken down ${s.buildings_removed ?? 0}, still in hand ${r.orders}; standing ${Object.entries(r.standing).map(([k, v]) => `${k} ${v}`).join(', ')}`);
   console.log(`  longest stuck with no way forward: ${r.stuckMax.toFixed(1)} game days; longest run of idle daily samples: ${r.idleMax} days`);
+  console.log(`  winter and events: wood burned ${Math.round(s.wood_burned ?? 0)}, cold nights ${s.cold_nights ?? 0}, bad harvests ${s.bad_harvests ?? 0}, plagues ${s.plagues ?? 0} (cases ${s.plague_cases ?? 0}, recovered ${s.plague_recoveries ?? 0}), refugees taken ${s.refugees_taken ?? 0} / turned away ${s.refugees_turned_away ?? 0}`);
+  console.log(`  raids: ${s.raids ?? 0} (repelled ${s.raids_repelled ?? 0}, skirmish ${s.raids_skirmish ?? 0}, overrun ${s.raids_overrun ?? 0}), goods lost ${Math.round(s.loot ?? 0)}, wounds ${s.wounds ?? 0}`);
+  console.log(`  population at the end of each year: ${r.byYear.join(', ')}${r.collapsedYear ? ` (collapsed in year ${r.collapsedYear})` : ''}`);
   console.log(`  work: jobs done ${s.jobs_done ?? 0}, refusals ${s.refusals ?? 0}, step failures ${s.step_failures ?? 0}`);
   if (!quiet) console.log(`  feed: ${Object.entries(r.feed).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', ')}`);
 }
+
+// Survival across seeds (docs/notes/balance-v0.md section 8).
+const survival = (y: number): string => {
+  if (y > YEARS) return 'n/a';
+  const alive = results.filter((r) => !r.collapsedYear || r.collapsedYear > y);
+  return `${Math.round((100 * alive.length) / results.length)}% (${alive.length}/${results.length})`;
+};
+console.log(`
+survival (population of at least ${COLLAPSE} at the end of the year): year 1 ${survival(1)}, year 3 ${survival(3)}, year 5 ${survival(5)}`);
+const ends = results.filter((r) => !r.collapsedYear).map((r) => r.end);
+if (ends.length) console.log(`population at the end, survivors: ${ends.join(', ')} (average ${(ends.reduce((a, b) => a + b, 0) / ends.length).toFixed(1)})`);
+const starved = results.map((r) => r.stats.death_hunger ?? 0);
+console.log(`deaths from hunger, per seed: ${starved.join(', ')}`);
 
 // Across all seeds: which kinds of ambition came true, which were given up, and which never happened at all.
 console.log('\nambitions by kind, all seeds (fulfilled / abandoned):');

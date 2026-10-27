@@ -278,6 +278,20 @@ describe('websocket', () => {
     await bot.close();
   });
 
+  it('takes a rationing level, sends the status when it changes, and refuses an unknown level', async () => {
+    const cookie = await signup('Quartermaster');
+    const bot = await Bot.connect(cookie);
+    const { view } = await bot.enter();
+    expect(view.status).toMatchObject({ rationing: 0, alert: null });
+    expect(view.status.foodDays).toBeGreaterThan(5);
+    bot.send({ t: 'ration', level: 2 });
+    await until(() => bot.of('upd').some((u) => u.status?.rationing === 2), 3000, 'the new rationing in an update');
+    expect(bot.of('note').some((n) => /ration/i.test(n.text))).toBe(true);
+    bot.send({ t: 'ration', level: 5 });
+    await until(() => bot.of('err').some((e) => e.code === 'bad_message'), 3000, 'bad_message for level 5');
+    await bot.close();
+  });
+
   it('validates every client message', async () => {
     const cookie = await signup('Fuzzer');
     const bot = await Bot.connect(cookie);

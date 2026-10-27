@@ -64,6 +64,11 @@ export class GameSession {
     this.send({ t: 'cancel', order });
   }
 
+  /** How much of a portion each person is given: 0 normal, 1 tight, 2 strict. */
+  setRation(level: 0 | 1 | 2): void {
+    this.send({ t: 'ration', level });
+  }
+
   private send(msg: C2S): boolean {
     const ok = this.o.socket.send(msg);
     if (!ok) this.o.onNotConnected();
@@ -85,7 +90,7 @@ export class GameSession {
         view.applyEntities({ add: v.entities.map(toRenderEntity) });
         view.setSpeed(v.speed);
         view.setTime(v.time);
-        store.patch({ time: v.time, speed: v.speed, population: v.population, stock: v.stock, buildings: v.buildings, plots: v.plots, roster: v.roster, feed: v.feed.slice(-FEED_KEEP), orders: v.orders, wishes: v.wishes });
+        store.patch({ time: v.time, speed: v.speed, population: v.population, stock: v.stock, buildings: v.buildings, plots: v.plots, roster: v.roster, feed: v.feed.slice(-FEED_KEEP), orders: v.orders, wishes: v.wishes, status: v.status });
         // After a reconnect the server forgets whom we were watching.
         const sel = store.get('selected');
         if (sel !== null) this.send({ t: 'inspect', id: sel });
@@ -109,6 +114,7 @@ export class GameSession {
         if (m.roster) patch.roster = m.roster;
         if (m.orders) patch.orders = m.orders;
         if (m.wishes) patch.wishes = m.wishes;
+        if (m.status) patch.status = m.status;
         store.patch(patch);
         const sel = store.get('selected');
         if (sel !== null && store.get('follow')) {

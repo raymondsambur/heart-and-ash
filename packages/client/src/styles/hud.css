@@ -104,6 +104,55 @@
   grid-template-columns: repeat(4, 1fr);
   gap: 0.3rem;
 }
+.vstats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.3rem;
+}
+.vstat {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.2rem 0.45rem;
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--line-faint);
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+.vstat-val {
+  font-family: var(--font-serif);
+  font-size: 0.9rem;
+  color: var(--text);
+}
+.vstat.low {
+  border-color: var(--bad, #c0583f);
+}
+.vstat.low .vstat-val {
+  color: var(--bad, #e08a6d);
+}
+.vrations {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+.vrations-label {
+  flex: 1;
+}
+.vration[aria-pressed='true'] {
+  border-color: var(--gold);
+  color: var(--gold-hi);
+}
+.valert {
+  font-size: 0.72rem;
+  line-height: 1.3;
+  color: var(--text-dim);
+}
+.valert.bad {
+  color: var(--bad, #e08a6d);
+}
 .stock-item {
   display: flex;
   flex-direction: column;

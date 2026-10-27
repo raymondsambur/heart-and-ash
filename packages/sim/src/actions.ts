@@ -2,7 +2,8 @@
  * What happens when an action ends: the handlers of the action library (the table is in `shared/data/actions.ts`).
  * Plain effects (a need rising, a good appearing in the hands) are here; the social and conflict acts are in `social.ts`.
  */
-import { ACTIONS, COOKED_MEAL_POINTS, GAME_HOUR_MS, MEAL_PORTION, RAW_MEAL_POINTS, skillSpeed, traitMod, type Good } from '@hearth/shared';
+import { ACTIONS, BAL, COOKED_MEAL_POINTS, GAME_HOUR_MS, MEAL_PORTION, RAW_MEAL_POINTS, skillSpeed, traitMod, type Good } from '@hearth/shared';
+import { blightReach, rationOf } from './economy';
 import { addWork, deliver } from './construct';
 import { leave } from './life';
 import type { Ctx } from './ctx';
@@ -91,10 +92,12 @@ export const HANDLERS: Record<string, Handler> = {
   eat(d) {
     const good = d.p.carrying?.good;
     if (good !== 'meal' && good !== 'ration') return;
-    const took = takeCarry(d.p, MEAL_PORTION + 0.01);
+    const r = rationOf(d.c);
+    const took = takeCarry(d.p, MEAL_PORTION * r.portion + 0.01);
     if (took <= 0) return;
-    d.p.needs.food = clamp(d.p.needs.food + (good === 'meal' ? COOKED_MEAL_POINTS : RAW_MEAL_POINTS));
+    d.p.needs.food = clamp(d.p.needs.food + (good === 'meal' ? COOKED_MEAL_POINTS : RAW_MEAL_POINTS) * r.points);
     if (good === 'meal') addMood(d.c, d.p, 'a hot meal', 3, 5);
+    if (r.mood < 0) addMood(d.c, d.p, 'on short rations', r.mood, 8);
     stat(d.c, 'meals');
   },
   drink(d) {
@@ -170,7 +173,7 @@ export const HANDLERS: Record<string, Handler> = {
   },
   forage(d) {
     const season = d.c.season === 2 ? 0.8 : 1;
-    gather(d, 'ration', 0.4 * season);
+    gather(d, 'ration', 0.4 * season * Math.max(0.4, 1 - 0.06 * blightReach(d.c)));
   },
   // ---- construction (M2): the work is in construct.ts ------------------------------------------------------------
   deliver_material(d) {
@@ -192,13 +195,13 @@ export const HANDLERS: Record<string, Handler> = {
     gather(d, 'herb', 0.5);
   },
   hunt(d) {
-    gather(d, 'ration', 0.9);
+    gather(d, 'ration', 0.9 * (d.c.season === 3 ? BAL.winter.huntFactor : 1));
     // Hunting is risky: a wound now and then, less with fighting skill and courage.
     const risk = 0.05 - d.p.skills.fighting.lv * 0.002 - traitMod(d.p.traits, 'risk') * 0.02;
     if (d.c.rng.chance(Math.max(0.01, risk))) wound(d, 'a boar caught them');
   },
   fish(d) {
-    gather(d, 'ration', 0.5);
+    gather(d, 'ration', 0.5 * (d.c.season === 3 ? BAL.winter.fishFactor : 1));
   },
   chop_wood(d) {
     gather(d, 'wood', 1.75);
@@ -352,11 +355,13 @@ export const HANDLERS: Record<string, Handler> = {
     stat(d.c, 'slacking');
   },
   patrol(d) {
+    d.p.counters.watchAt = d.c.now;
     xp(d, 'fighting', 5);
     d.p.needs.purpose = clamp(d.p.needs.purpose + 6);
     bump(d.p, 'watch', d.hours);
   },
   stand_watch(d) {
+    d.p.counters.watchAt = d.c.now;
     xp(d, 'fighting', 4);
     d.p.needs.purpose = clamp(d.p.needs.purpose + 6);
     bump(d.p, 'watch', d.hours);
