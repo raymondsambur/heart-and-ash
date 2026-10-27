@@ -22,6 +22,10 @@ export interface Ctx {
   people: Person[];
   /** Mark the people index stale after someone is born, dies or leaves. */
   dirty(): void;
+  /** Tiles the village has built on or cleared since the map was made: 1 blocked, 2 open (a starting building that is gone), 0 as the map says. */
+  over: Uint8Array;
+  /** Can people walk on this tile? The map, with what has been built or taken down. */
+  open(x: number, y: number): boolean;
 }
 
 export const MIN = 250; // game ms per game minute

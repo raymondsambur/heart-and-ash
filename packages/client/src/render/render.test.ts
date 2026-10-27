@@ -237,8 +237,47 @@ describe('world model', () => {
     objects[5 * w + 5] = O.Wall;
     objects[5 * w + 6] = O.Wall;
     objects[4 * w + 5] = O.Wall;
-    const wm = new WorldModel({ payload: { seed: 1, w, h, terrain: '', objects: '', blight: '' }, terrain, objects, blight: new Uint8Array(w * h) });
+    const wm = new WorldModel({ payload: { seed: 1, w, h, terrain: '', objects: '', blight: '', center: { x: 0, y: 0 } }, terrain, objects, blight: new Uint8Array(w * h) });
     expect(wm.wallMask(5, 5)).toBe(W_SE | W_NE);
+  });
+});
+
+describe('field ground follows the plots', () => {
+  const w = 12;
+  const h = 12;
+  const mk = (): WorldModel => {
+    const terrain = new Uint8Array(w * h).fill(T.Grass);
+    for (let y = 1; y < 4; y++) for (let x = 1; x < 4; x++) terrain[y * w + x] = T.Farm;
+    return new WorldModel({ payload: { seed: 1, w, h, terrain: '', objects: '', blight: '', center: { x: 6, y: 6 } }, terrain, objects: new Uint8Array(w * h), blight: new Uint8Array(w * h) });
+  };
+  const farm = (m: WorldModel, x: number, y: number): number => m.terrainAt(x, y);
+  it('turns starting farmland that no plot covers into grass, and back', () => {
+    const m = mk();
+    const changed: number[] = [];
+    m.onTileChange = (x, y) => changed.push(y * w + x);
+    m.setPlots([]);
+    expect(farm(m, 2, 2)).toBe(T.Grass);
+    expect(changed.length).toBe(9);
+    m.setPlots([{ id: 1, kind: 'field', x: 1, y: 1, w: 3, d: 3 }]);
+    expect(farm(m, 2, 2)).toBe(T.Farm);
+  });
+  it('shows a field being cleared and ploughed tile by tile', () => {
+    const m = mk();
+    const plot = { id: 2, kind: 'field' as const, x: 6, y: 6, w: 4, d: 2 };
+    m.setPlots([{ ...plot, con: { mode: 'build', done: 0, pct: 50, order: 1 } }]);
+    // the first half of the tiles (in reading order) are cleared: all of the top row, none of the bottom
+    expect([6, 7, 8, 9].map((x) => farm(m, x, 6))).toEqual([T.Dirt, T.Dirt, T.Dirt, T.Dirt]);
+    expect([6, 7, 8, 9].map((x) => farm(m, x, 7))).toEqual([T.Grass, T.Grass, T.Grass, T.Grass]);
+    m.setPlots([{ ...plot, con: { mode: 'build', done: 1, pct: 50, order: 1 } }]);
+    expect(farm(m, 6, 6)).toBe(T.Farm);
+    expect(farm(m, 9, 7)).toBe(T.Dirt);
+    m.setPlots([plot]);
+    expect([6, 9].map((x) => farm(m, x, 7))).toEqual([T.Farm, T.Farm]);
+    expect(m.plotMarks.length).toBe(0);
+    m.setPlots([{ ...plot, con: { mode: 'demolish', done: 2, pct: 0, order: 3 } }]);
+    expect(m.plotMarks.length).toBe(1);
+    m.setPlots([]);
+    expect(farm(m, 6, 6)).toBe(T.Grass);
   });
 });
 

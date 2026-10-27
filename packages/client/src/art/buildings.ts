@@ -31,6 +31,8 @@ import {
 } from './arch';
 import * as P from './props';
 import * as L from './landmarks';
+import { FULL, plotMarks, staged, wallStaged } from './construction';
+import type { ConProgress } from './bctx';
 
 export type { BuildingArt, BuildingSpec, Ctx, LightDef, SmokeDef } from './bctx';
 export { addLight, addSmoke, doorPlacement, windowsFor } from './bctx';
@@ -59,10 +61,14 @@ const ROOF_DEFAULT: Record<BuildingKind, string> = {
   dormitory: '#55705f',
   pavilion: '#46706a',
   sectGate: '#a8302a',
+  workshop: '#3f3a40',
+  watchpost: '#585e6c',
+  well: '#6b4a3a',
+  wall: '#8e8a82',
 };
 
 /** Kinds whose roof takes the faction colour. */
-const TINTED = new Set<BuildingKind>(['house', 'inn', 'hall', 'barracks', 'tower', 'gate', 'teahouse', 'warehouse', 'dojo', 'pagoda', 'dormitory', 'pavilion']);
+const TINTED = new Set<BuildingKind>(['house', 'inn', 'hall', 'barracks', 'tower', 'gate', 'teahouse', 'warehouse', 'dojo', 'pagoda', 'dormitory', 'pavilion', 'watchpost']);
 
 const MAX_Z: Record<BuildingKind, number> = {
   house: 70,
@@ -88,10 +94,14 @@ const MAX_Z: Record<BuildingKind, number> = {
   dormitory: 62,
   pavilion: 84,
   sectGate: 90,
+  workshop: 76,
+  watchpost: 86,
+  well: 40,
+  wall: 40,
 };
 
 /** Vertical stretch per kind (default `BUILDING_ZK`). */
-const ZK_KIND: Partial<Record<BuildingKind, number>> = { market: 1.5, mineEntrance: 2.2, tower: 1.5, hall: 1.5, inn: 1.6 };
+const ZK_KIND: Partial<Record<BuildingKind, number>> = { market: 1.5, mineEntrance: 2.2, tower: 1.5, watchpost: 1.5, hall: 1.5, inn: 1.6 };
 
 const WALL_TONES = ['#e6dcc6', '#ddd2b8', '#e9e0cd', '#d8cbb0'];
 
@@ -107,13 +117,17 @@ function sectGateArt(spec: BuildingSpec): BuildingArt {
   return { pb: g.pb, glow, ox, oy, lights, smoke: [], metrics: { door: 0, eave: 0 } };
 }
 
-export function genBuilding(spec: BuildingSpec): BuildingArt {
-  if (spec.kind === 'sectGate') return sectGateArt(spec);
-  if (spec.kind === 'yard') return { pb: new PixelBuffer(1, 1), glow: new PixelBuffer(1, 1), ox: 0, oy: 0, lights: [], smoke: [], metrics: { door: 0, eave: 0 } };
+interface Setup {
+  ctx: Ctx;
+  ox: number;
+  oy: number;
+}
+
+/** The scene and shared context of one building sprite (`marginX` leaves room beside it, e.g. for material piles). */
+function setup(spec: BuildingSpec, marginX = 14, maxZOverride?: number): Setup {
   const { w, d } = spec;
-  const marginX = 14;
   const zk = ZK_KIND[spec.kind] ?? BUILDING_ZK;
-  const maxZ = (MAX_Z[spec.kind] ?? 80) * zk;
+  const maxZ = (maxZOverride ?? MAX_Z[spec.kind] ?? 80) * zk;
   const oy = Math.ceil(maxZ) + 14;
   const ox = d * AHW + marginX;
   const W = (w + d) * AHW + marginX * 2;
@@ -151,6 +165,32 @@ export function genBuilding(spec: BuildingSpec): BuildingArt {
     rnd: (k) => hf(seed, k, 5),
     metrics: { door: 0, eave: 0 },
   };
+  return { ctx, ox, oy };
+}
+
+/** A building (or plot) under construction or demolition: only what stands, with scaffolding, piles and rubble. */
+export function genConstruction(spec: BuildingSpec, pr: ConProgress): BuildingArt {
+  const { ctx, ox, oy } = setup(spec, 28);
+  staged(ctx, pr);
+  ctx.sc.pb.outline(undefined, 0.3);
+  return { pb: ctx.sc.pb, glow: ctx.sc.glow, ox, oy, lights: ctx.lights, smoke: ctx.smoke, metrics: ctx.metrics };
+}
+
+/** Stakes and cord around a plot that is not a building yet (a field being laid out). */
+export function genPlotMarks(spec: BuildingSpec): BuildingArt {
+  const { ctx, ox, oy } = setup({ ...spec, kind: 'yard' }, 14, 12);
+  plotMarks(ctx, spec.w, spec.d);
+  ctx.sc.pb.outline(undefined, 0.3);
+  return { pb: ctx.sc.pb, glow: ctx.sc.glow, ox, oy, lights: [], smoke: [], metrics: ctx.metrics };
+}
+
+export function genBuilding(spec: BuildingSpec): BuildingArt {
+  if (spec.kind === 'sectGate') return sectGateArt(spec);
+  if (spec.kind === 'yard') return { pb: new PixelBuffer(1, 1), glow: new PixelBuffer(1, 1), ox: 0, oy: 0, lights: [], smoke: [], metrics: { door: 0, eave: 0 } };
+  const { w, d } = spec;
+  const { ctx, ox, oy } = setup(spec);
+  const { sc } = ctx;
+  const fallen = ctx.st.fallen;
   switch (spec.kind) {
     case 'house':
       house(ctx);
@@ -214,6 +254,21 @@ export function genBuilding(spec: BuildingSpec): BuildingArt {
       break;
     case 'ruinedHouse':
       L.ruinedHouse(ctx);
+      break;
+    case 'workshop':
+      smithy(ctx);
+      break;
+    case 'watchpost':
+      L.tower(ctx);
+      break;
+    case 'well': {
+      const wl = P.well();
+      sc.sprite(wl.pb, wl.ax, wl.ay, 0.5, 0.5, 0, 4);
+      ctx.metrics.eave = 30 * sc.zk;
+      break;
+    }
+    case 'wall':
+      wallStaged(ctx, FULL);
       break;
     default:
       house(ctx);

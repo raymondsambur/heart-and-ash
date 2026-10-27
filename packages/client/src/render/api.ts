@@ -6,7 +6,7 @@
  * the optional fields (beasts, harvest nodes, gear, battle sides) are kept because later milestones bring wildlife and raiders back.
  */
 import type { CharState, ToolKind } from '../art/anim';
-import type { ActorState, BuildingDef, Dir, GearLook, Look, NodeKind, NpcAct, NpcRole, PlotDef, Speed, TimeView, WeaponType, WorldPayload } from '@hearth/shared';
+import type { ActorState, BuildingDef, CarryKind, Dir, GearLook, Look, NodeKind, NpcAct, NpcRole, PlotDef, Speed, TimeView, WeaponType, WorldPayload } from '@hearth/shared';
 
 /** World payload with its grids decoded from base64. */
 export interface DecodedWorld {
@@ -36,6 +36,8 @@ export interface RenderEntity {
   look?: Look;
   role?: NpcRole;
   act?: NpcAct;
+  /** A load in their hands. */
+  carry?: CarryKind;
   /** Sprite key for monsters and nodes, e.g. 'wolf', 'bandit', 'herb'. */
   sprite?: string;
   nodeKind?: NodeKind;
@@ -73,6 +75,19 @@ export interface PickResult {
 
 export type PickGesture = 'tap' | 'context' | 'hover';
 
+/** A footprint shown on the ground while the player lays out a building or points at one to take down. */
+export interface Placement {
+  /** Top-left tile and size in tiles. */
+  x: number;
+  y: number;
+  w: number;
+  d: number;
+  /** Green (can be put here), red (cannot) or a warm red wash (the thing that would come down). */
+  tone: 'ok' | 'bad' | 'demolish';
+  /** The tile in front of the door, marked when given. */
+  door?: { x: number; y: number };
+}
+
 export interface GameViewApi {
   /** Begin the render loop (requestAnimationFrame). */
   start(): void;
@@ -98,6 +113,8 @@ export interface GameViewApi {
   setSelected(entityId: number | null): void;
   /** Pointer events resolved to tiles/entities. Mouse: tap=left click, context=right click. Touch: tap, context=long press. */
   onPick(cb: (pick: PickResult, gesture: PickGesture) => void): void;
+  /** Show (or with null hide) a footprint on the ground. */
+  setPlacement(p: Placement | null): void;
 
   centerOn(x: number, y: number, instant?: boolean): void;
   /** 0.5 .. 2.5. */

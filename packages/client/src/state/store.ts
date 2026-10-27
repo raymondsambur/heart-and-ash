@@ -2,8 +2,17 @@
  * The client's central state: what the server last told us about the village, and the connection. Small on purpose,
  * the client holds no game rules. `subscribe(keys, fn)` is the only way UI parts learn about changes.
  */
-import type { BuildingDef, FeedEntry, MeResponse, PersonBrief, PersonSheet, PlotDef, Speed, StockSummary, TimeView, VillageBrief } from '@hearth/shared';
+import type { BuildKind, BuildingDef, FeedEntry, MeResponse, OrderView, PersonBrief, PersonSheet, PlotDef, Speed, StockSummary, TimeView, VillageBrief, WishView } from '@hearth/shared';
 import type { ConnInfo } from '../net/socket';
+
+/** What the pointer does on the map: nothing, lay out a building, or pick something to take down. */
+/** A finished or half-built structure the player has pointed at. */
+export interface Focus {
+  building?: number;
+  plot?: number;
+}
+
+export type MapTool = { t: 'build'; kind: BuildKind; rot: boolean } | { t: 'demolish' } | null;
 
 export interface State {
   me: MeResponse | null;
@@ -20,6 +29,12 @@ export interface State {
   selected: number | null;
   sheet: PersonSheet | null;
   follow: boolean;
+  /** Build and demolish orders in hand, what villagers wish for, and the map tool in use. */
+  orders: OrderView[];
+  wishes: WishView[];
+  tool: MapTool;
+  /** The building or field the player last tapped (its progress and the way to take it down show in the build panel). */
+  focus: Focus | null;
   conn: ConnInfo;
   /** Round-trip time to the server in ms, or null before the first answer. */
   latency: number | null;
@@ -42,6 +57,10 @@ export function initialState(): State {
     selected: null,
     sheet: null,
     follow: false,
+    orders: [],
+    wishes: [],
+    tool: null,
+    focus: null,
     conn: { state: 'idle', attempt: 0 },
     latency: null,
   };

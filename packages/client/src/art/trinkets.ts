@@ -241,6 +241,36 @@ export function paintTool(c: Ctx, tool: ToolKind, hx: number, hy: number, ang: n
       }
       break;
     }
+    case 'saw': {
+      shaft(-3, 2, 1.1);
+      rotFill(pb, ctx, 2, 14, (s) => 1.8 - (s - 2) * 0.06, (s, o) => (Math.floor(s) % 2 === 0 && o < -0.55 ? M.d : o > 0.3 ? M.hl : M.l));
+      break;
+    }
+    case 'plank': {
+      // a board carried along the arms
+      const w = ramp('#b88c54', 0.66, 1.25);
+      rotFill(pb, ctx, -7, 8, () => 1.7, (s, o, _hw, x, y) => (o > 0.4 ? w.hl : (x + Math.floor(s)) % 5 === 0 && o < 0 ? w.d : o > -0.45 ? w.b : w.d));
+      break;
+    }
+    case 'log': {
+      const bark = ramp('#6b4a2e', 0.62, 1.3);
+      rotFill(pb, ctx, -6, 7, () => 2.4, (s, o, _hw, x, y) => (o > 0.45 ? bark.l : (x * 3 + y) % 7 === 0 ? bark.dd : o > -0.3 ? bark.b : bark.d));
+      const ca = rotAt(ctx, 7, 0);
+      pb.set(ca[0], ca[1], hex('#d9b277'));
+      break;
+    }
+    case 'stone': {
+      const st = ramp('#9a958c', 0.64, 1.25);
+      c.sh.clear().ell(hx + 0.6, hy - 2.2, 4.4, 3.6).shade(pb, st, { seed: 4 });
+      pb.set(hx - 1, hy - 3.6, st.hl);
+      break;
+    }
+    case 'bundle': {
+      const straw = ramp('#c9a649', 0.7, 1.2);
+      c.sh.clear().ell(hx + 0.4, hy - 2.4, 4.2, 3.4).shade(pb, straw, { seed: 5 });
+      pb.hline(hx - 3, hx + 3.6, hy - 2.4, hex('#7a5a34'));
+      break;
+    }
     case 'ladle': {
       shaft(-3, 9.5, 0.85);
       const [bx, by] = rotAt(ctx, 10.5, 0);

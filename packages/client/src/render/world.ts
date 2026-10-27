@@ -2,7 +2,7 @@
  * Renderer-side model of the static map plus the dynamic layers (buildings, Blight).
  * Pure data and lookups (unit tested); the renderer reads from it every frame.
  */
-import { O, T, type BuildingDef, type PlotDef } from '@hearth/shared';
+import { O, T, type BuildingDef, type ConView, type PlotDef } from '@hearth/shared';
 import type { DecodedWorld } from './api';
 
 /** Wall connection bits (tile-axis neighbours): NE = y-1, SE = x+1, SW = y+1, NW = x-1. */
@@ -25,6 +25,13 @@ export class WorldModel {
   readonly blight: Uint8Array;
   buildings: BuildingInfo[] = [];
   plots: PlotDef[] = [];
+  /** Plots with something under way, drawn like buildings (stakes and cord). */
+  plotMarks: BuildingInfo[] = [];
+  /** Called for every tile whose ground changed (the chunk painter repaints around it). */
+  onTileChange: ((x: number, y: number) => void) | null = null;
+  private readonly baseTerrain: Uint8Array;
+  private readonly baseFarm: number[] = [];
+  private overlaid = new Map<number, number>();
   /** Building id + 1 per footprint tile, 0 where none. */
   readonly footprint: Int16Array;
   /** Distance to the nearest non-rock tile for Rock tiles (0 elsewhere), capped. */
@@ -38,6 +45,8 @@ export class WorldModel {
     this.h = world.payload.h;
     this.seed = world.payload.seed;
     this.terrain = world.terrain;
+    this.baseTerrain = world.terrain.slice();
+    for (let i = 0; i < this.baseTerrain.length; i++) if (this.baseTerrain[i] === T.Farm) this.baseFarm.push(i);
     this.objects = world.objects;
     this.blight = new Uint8Array(this.w * this.h);
     this.blight.set(world.blight.subarray(0, this.blight.length));
@@ -53,6 +62,40 @@ export class WorldModel {
       for (let yy = b.y; yy < b.y + b.d; yy++)
         for (let xx = b.x; xx < b.x + b.w; xx++) if (xx >= 0 && yy >= 0 && xx < this.w && yy < this.h) this.footprint[yy * this.w + xx] = b.id + 1;
     this.buildings.sort((a, b) => a.depth - b.depth);
+  }
+
+  /**
+   * The plots changed: field ground follows them. Cleared ground is bare dirt, ploughing turns it to furrows tile by tile, a
+   * finished field is farmland, and farmland of the starting map that no plot covers any more (a field taken down) is grass.
+   * The map's own grid is kept in `baseTerrain`; only tiles that differ are touched.
+   */
+  setPlots(list: PlotDef[]): void {
+    this.plots = list;
+    const w = this.w;
+    const want = new Map<number, number>();
+    const ground = (i: number): number => (this.baseTerrain[i] === T.Farm ? T.Grass : this.baseTerrain[i]);
+    for (const i of this.baseFarm) want.set(i, T.Grass);
+    this.plotMarks = [];
+    for (const p of list) {
+      const n = p.w * p.d;
+      for (let k = 0; k < n; k++) {
+        const x = p.x + (k % p.w);
+        const y = p.y + ((k / p.w) | 0);
+        if (x < 0 || y < 0 || x >= w || y >= this.h) continue;
+        const i = y * w + x;
+        want.set(i, plotGround(p.con, k / n, ground(i)));
+      }
+      if (p.con) this.plotMarks.push({ def: { id: 150000 + p.id, kind: 'yard', x: p.x, y: p.y, w: p.w, d: p.d, door: { x: p.x, y: p.y + p.d }, con: p.con }, depth: p.x + p.w - 1 + (p.y + p.d - 1) + 0.5 });
+    }
+    this.plotMarks.sort((a, b) => a.depth - b.depth);
+    const touch = (i: number, v: number): void => {
+      if (this.terrain[i] === v) return;
+      this.terrain[i] = v;
+      this.onTileChange?.(i % w, (i / w) | 0);
+    };
+    for (const i of this.overlaid.keys()) if (!want.has(i)) touch(i, this.baseTerrain[i]);
+    for (const [i, v] of want) if (v !== this.baseTerrain[i] || this.overlaid.has(i)) touch(i, v);
+    this.overlaid = new Map([...want].filter(([i, v]) => v !== this.baseTerrain[i]));
   }
 
   inb(x: number, y: number): boolean {
@@ -142,4 +185,19 @@ export function computeRockDist(terrain: Uint8Array, w: number, h: number): Uint
       d[i] = m > 15 ? 15 : m;
     }
   return d;
+}
+
+/** Ground of one tile of a field: `at` is its place (0..1) in the order the plot is worked, `ground` what lies there untouched. */
+function plotGround(con: ConView | undefined, at: number, ground: number): number {
+  if (!con) return T.Farm;
+  const f = con.pct / 100;
+  if (con.mode === 'rubble') return T.Dirt;
+  // stages of a field: 0 cleared, 1 ploughed
+  if (con.mode === 'build') {
+    if (con.done === 0) return at < f ? T.Dirt : ground;
+    return at < f ? T.Farm : T.Dirt;
+  }
+  // taking it down: the furrows go first, then the cleared ground itself
+  if (con.done >= 2) return at < 1 - f ? T.Farm : T.Dirt;
+  return at < 1 - f ? T.Dirt : ground;
 }

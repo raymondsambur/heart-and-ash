@@ -10,6 +10,7 @@ import { decayMemories } from './memory';
 import { stop } from './move';
 import { clamp } from './needs';
 import { COMING_OF_AGE, MARRIAGE_AGE, ageOf, newPerson, TRADE_ROTA } from './people';
+import { emptiestHome } from './construct';
 import { addMood, bond, feedAbout, mem, relOf, stat } from './util';
 import { GROW_DAYS, TEND_HOURS, FIELD_YIELD } from './actions';
 import type { Person } from './types';
@@ -134,16 +135,6 @@ function giveBirth(c: Ctx, mother: Person): void {
   for (const o of c.people) if (o.id !== mother.id && o.id !== father?.id && relOf(o, mother.id).fam > 40) addMood(c, o, `${baby.name} was born`, 3, 24 * 2);
   stat(c, 'births');
   pushFeed(c.st, c.pending, 'birth', `${baby.name} was born to ${mother.name}${father ? ` and ${father.name}` : ''}.`, [baby.id, mother.id, ...(father ? [father.id] : [])]);
-}
-
-/** Pick the house with the fewest people under its roof. */
-function emptiestHome(c: Ctx): number | null {
-  const counts = new Map<number, number>();
-  for (const b of c.st.buildings) if (b.kind === 'house') counts.set(b.id, 0);
-  for (const o of c.st.people) if (o.home !== null && counts.has(o.home)) counts.set(o.home, counts.get(o.home)! + 1);
-  let best: number | null = null;
-  for (const [id, n] of counts) if (best === null || n < counts.get(best)!) best = id;
-  return best;
 }
 
 function arrive(c: Ctx, n: number): void {

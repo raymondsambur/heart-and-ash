@@ -1,4 +1,4 @@
-import type { Ambition, BuildingDef, Dir, Good, Look, NeedId, NpcAct, PlaceKind, PlotDef, Point, SkillId, Speed, TraitId, WeatherKind } from '@hearth/shared';
+import type { Ambition, BuildKind, BuildingDef, Dir, Good, Look, NeedId, NpcAct, PlaceKind, PlotDef, Point, SkillId, Speed, TraitId, WeatherKind } from '@hearth/shared';
 
 // ---------------------------------------------------------------------------------------------------
 // Places
@@ -13,6 +13,8 @@ export interface Site {
   /** Building or plot behind the site, when there is one. */
   building?: number;
   plot?: number;
+  /** For a `buildsite`: the order it serves. */
+  order?: number;
 }
 
 /** What grows in a field. */
@@ -45,7 +47,7 @@ export type Goal =
   /** Put more of a good into the village store. */
   | { kind: 'stock'; good: Good; label: string }
   /** Do one specific thing, possibly to a place or a person. */
-  | { kind: 'act'; action: string; site?: number; plot?: number; who?: number; label: string };
+  | { kind: 'act'; action: string; site?: number; plot?: number; who?: number; label: string; /** An order of the village's builders (M2), and the good to bring to it. */ order?: number; good?: Good };
 
 /** One step of a plan. The planner leaves `site` and `who` open; the executor resolves them when the step starts. */
 export interface Step {
@@ -53,6 +55,7 @@ export interface Step {
   at: PlaceKind;
   site?: number;
   plot?: number;
+  order?: number;
   who?: number;
   good?: Good;
   /** How much to take or move. */
@@ -226,6 +229,38 @@ export interface Person {
   counters: Record<string, number>;
 }
 
+/**
+ * A build or demolish order: the work on one building or plot, from the marked ground to the finished house, or from the finished
+ * house down to the rubble. The building (or plot) in `st.buildings` / `st.plots` carries the `con` the client draws.
+ */
+export interface Order {
+  id: number;
+  mode: 'build' | 'demolish' | 'rubble';
+  kind: BuildKind;
+  /** The building or plot the order works on. */
+  building?: number;
+  plot?: number;
+  x: number;
+  y: number;
+  w: number;
+  d: number;
+  /** Where builders stand: the tile in front. */
+  door: Point;
+  /** Building: stages finished. Demolishing: stages still standing. */
+  done: number;
+  /** Labour put into the stage in hand. */
+  work: number;
+  /** Material delivered to the plot since the order began, by good. */
+  delivered: Partial<Record<Good, number>>;
+  placedDay: number;
+  /** The villager who asked for it (their own house), or null for the manager. */
+  by: number | null;
+  /** Labour each villager has put in, by id (the one who did most gets the house they wanted). */
+  labourBy: Record<number, number>;
+  /** Why it is not moving, in words. */
+  note?: string;
+}
+
 export interface Grave {
   id: number;
   name: string;
@@ -248,9 +283,15 @@ export interface FeedItem {
 // Commands and results
 // ---------------------------------------------------------------------------------------------------
 
-export type SimCommand = { t: 'speed'; speed: Speed };
+export type SimCommand =
+  | { t: 'speed'; speed: Speed }
+  /** Order a building raised (or a field ploughed) with its top-left corner at (x, y). */
+  | { t: 'build'; kind: BuildKind; x: number; y: number; rot?: boolean }
+  | { t: 'demolish'; building?: number; plot?: number }
+  | { t: 'cancel'; order: number };
 
-export type CommandResult = { ok: true } | { ok: false; code: string; text: string };
+/** `text` is a line for the player when there is something to say ("House ordered."). */
+export type CommandResult = { ok: true; text?: string } | { ok: false; code: string; text: string };
 
 export type SimEvent =
   | { t: 'day'; day: number }
@@ -278,8 +319,13 @@ export interface SimState {
   fields: Field[];
   jobs: Job[];
   nextJobId: number;
-  /** Game ms of the last job-board refresh. */
+  /** Game ms of the last job-board refresh (-1 asks for one at the next step). */
   jobsAt: number;
+  /** Build and demolish orders in progress, oldest first (M2). */
+  orders: Order[];
+  nextOrderId: number;
+  nextBuildingId: number;
+  nextPlotId: number;
   people: Person[];
   graves: Grave[];
   feed: FeedItem[];

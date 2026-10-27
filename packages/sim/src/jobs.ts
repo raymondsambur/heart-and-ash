@@ -6,10 +6,11 @@
  */
 import { ACTIONS, STOCK_GOALS, type SkillId } from '@hearth/shared';
 import { GROW_DAYS, TEND_HOURS, fieldName } from './actions';
+import { constructionJobs, outstanding } from './construct';
 import type { Ctx } from './ctx';
 import type { Goal, Job } from './types';
 
-interface Draft {
+export interface Draft {
   key: string;
   type: string;
   goal: Goal;
@@ -21,7 +22,7 @@ interface Draft {
   label: string;
 }
 
-function draft(key: string, goal: Goal, priority: number, slots: number, o: Partial<Draft> = {}): Draft {
+export function draft(key: string, goal: Goal, priority: number, slots: number, o: Partial<Draft> = {}): Draft {
   const place = goal.kind === 'act' ? ACTIONS[goal.action]?.at : undefined;
   return { key, type: key.split(':')[0], goal, priority, slots, label: goal.label, ...o, ...(place ? {} : {}) };
 }
@@ -55,8 +56,13 @@ export function wanted(c: Ctx): Draft[] {
   const woodTarget = season === 3 ? 150 : season === 2 ? 600 : 400;
   const wood = st.stock.wood ?? 0;
   if (wood < woodTarget) out.push(draft('wood:stock', { kind: 'stock', good: 'wood', label: 'cut wood' }, wood < 100 ? 5 : season === 2 ? 4 : 3, Math.min(4, Math.max(1, Math.ceil((woodTarget - wood) / 120))), { skill: 'woodcraft' }));
-  if ((st.stock.stone ?? 0) < (STOCK_GOALS.stone ?? 100)) out.push(draft('stone:stock', { kind: 'stock', good: 'stone', label: 'quarry stone' }, 2, 1, { skill: 'mining' }));
-  if ((st.stock.planks ?? 0) < (STOCK_GOALS.planks ?? 60) && wood > 60) out.push(draft('planks:stock', { kind: 'act', action: 'saw_planks', label: 'saw planks' }, 2, 1, { skill: 'woodcraft' }));
+  // What the builders still need counts on top of the usual stock, so a house that waits for planks makes planks.
+  const owed = outstanding(c);
+  const stoneGoal = (STOCK_GOALS.stone ?? 100) + (owed.stone ?? 0);
+  const planksGoal = (STOCK_GOALS.planks ?? 60) + (owed.planks ?? 0);
+  if ((st.stock.stone ?? 0) < stoneGoal) out.push(draft('stone:stock', { kind: 'stock', good: 'stone', label: 'quarry stone' }, (owed.stone ?? 0) > (st.stock.stone ?? 0) ? 4 : 2, (owed.stone ?? 0) > 0 ? 2 : 1, { skill: 'mining' }));
+  if ((st.stock.planks ?? 0) < planksGoal && wood > 40) out.push(draft('planks:stock', { kind: 'act', action: 'saw_planks', label: 'saw planks' }, (owed.planks ?? 0) > (st.stock.planks ?? 0) ? 4 : 2, (owed.planks ?? 0) > 0 ? 2 : 1, { skill: 'woodcraft' }));
+  if (season < 3 && (st.stock.thatch ?? 0) < 12 + (owed.thatch ?? 0)) out.push(draft('thatch:stock', { kind: 'stock', good: 'thatch', label: 'cut thatch' }, (owed.thatch ?? 0) > (st.stock.thatch ?? 0) ? 4 : 2, 1, { skill: 'foraging' }));
   if ((st.stock.herb ?? 0) < 12 && season < 3) out.push(draft('herbs:stock', { kind: 'stock', good: 'herb', label: 'gather herbs' }, 2, 1, { skill: 'foraging' }));
   if ((st.stock.herb ?? 0) >= 3 && (st.stock.cloth ?? 0) < 12) out.push(draft('cloth:stock', { kind: 'act', action: 'weave_cloth', label: 'weave cloth' }, 2, 1, { skill: 'crafting' }));
   if ((st.stock.tool ?? 0) < 3 && wood >= 3) out.push(draft('tool:stock', { kind: 'act', action: 'make_tool', label: 'make tools' }, 3, 1, { skill: 'crafting' }));
@@ -64,6 +70,8 @@ export function wanted(c: Ctx): Draft[] {
   if ((st.stock.ration ?? 0) >= 2 && (st.stock.meal ?? 0) < eaters * 1.2) out.push(draft('cook:meals', { kind: 'act', action: 'cook', label: 'cook for the village' }, 3, 2, { skill: 'cooking' }));
   // the dead
   if (st.graves.some((g) => !g.buried)) out.push(draft('funeral:dead', { kind: 'act', action: 'bury_dead', label: 'bury the dead' }, 5, 3));
+  // the village's builders
+  out.push(...constructionJobs(c, draft));
   return out;
 }
 

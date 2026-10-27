@@ -55,6 +55,8 @@ function usable(p: Person, w: PlanWorld, extra?: string): ActionDef[] {
   for (const d of ACTION_LIST) {
     if (!d.active) continue;
     if (!d.plan && d.id !== extra) continue;
+    // The builders' acts belong to their orders: only a goal that names one may use it (not "empty my hands").
+    if (d.group === 'construction' && d.id !== extra) continue;
     if (d.at === 'person') continue;
     if (d.skill && d.minSkill && p.skills[d.skill].lv < d.minSkill) continue;
     if (d.seasons && !d.seasons.includes(w.season)) continue;
@@ -128,7 +130,7 @@ export function goalKey(g: Goal): string {
     case 'stock':
       return `s:${g.good}`;
     case 'act':
-      return `a:${g.action}`;
+      return `a:${g.action}:${g.good ?? ''}`;
   }
 }
 
@@ -153,14 +155,14 @@ export function plan(p: Person, goal: Goal, w: PlanWorld): PlanResult | PlanFail
       if (!def.active) return { blocked: 'that is not possible yet' };
       if (def.skill && def.minSkill && p.skills[def.skill].lv < def.minSkill) return { blocked: `needs ${def.skill} level ${def.minSkill}` };
       if (def.seasons && !def.seasons.includes(w.season)) return { blocked: 'not the season for it' };
-      const placeKnown = def.at === 'here' || def.at === 'person' || (def.at === 'home' ? p.home !== null : w.sites.ofKind(def.at).some((s) => known.has(s.id)));
+      const placeKnown = def.at === 'here' || def.at === 'person' || def.at === 'buildsite' || (def.at === 'home' ? p.home !== null : w.sites.ofKind(def.at).some((s) => known.has(s.id)));
       if (!placeKnown) return { blocked: def.at === 'home' ? 'has no home' : 'does not know where to go for it' };
-      return { steps: [{ a: def.id, at: def.at, who: goal.who, plot: goal.plot, site: goal.site }], cost: def.minutes };
+      return { steps: [{ a: def.id, at: def.at, who: goal.who, plot: goal.plot, site: goal.site, order: goal.order }], cost: def.minutes };
     }
   }
   // Bed is bed: going to sleep needs no search, and it must work even when they are not yet worn out (night time).
   if (goal.kind === 'need' && goal.need === 'rest' && p.home !== null) return { steps: [{ a: 'sleep', at: 'home' }], cost: ACTIONS.sleep.minutes };
-  const kindKnown = (k: PlaceKind): boolean => k === 'here' || (k === 'home' ? p.home !== null : w.sites.ofKind(k).some((s) => known.has(s.id)));
+  const kindKnown = (k: PlaceKind): boolean => k === 'here' || k === 'buildsite' || (k === 'home' ? p.home !== null : w.sites.ofKind(k).some((s) => known.has(s.id)));
   const extra = goal.kind === 'act' ? goal.action : undefined;
   const acts = usable(p, w, extra);
   const ff = fieldFlags(w.st.fields, known, w.sites);
@@ -242,6 +244,8 @@ function search(p: Person, goal: Goal, w: PlanWorld, acts: ActionDef[], ff: { ri
         // fetch a good (or a tool) from the store; one variant per good
         for (const g of GOODS) {
           if (!store(g)) continue;
+          // Fetching for a building site: only the good that is wanted.
+          if (goal.kind === 'act' && goal.good && g !== goal.good) continue;
           if (g === 'tool') {
             if (s.tool) continue;
             push({ a: 'take_item', at: 'store', good: 'tool', n: 1 }, d, { ...s, at: 'store', tool: true }, minutes);

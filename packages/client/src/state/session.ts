@@ -2,7 +2,7 @@
  * GameSession: the live link between the socket, the store and the world renderer. Feeds server messages into the
  * store and the renderer, and exposes the few things the UI may ask for (speed).
  */
-import type { C2S, NoteLevel, Speed, VillageView } from '@hearth/shared';
+import type { BuildKind, C2S, NoteLevel, Speed, VillageView } from '@hearth/shared';
 
 /** The feed keeps this many lines on the client. */
 const FEED_KEEP = 120;
@@ -51,6 +51,19 @@ export class GameSession {
     this.o.store.set('follow', on && this.o.store.get('selected') !== null);
   }
 
+  /** Order a building raised (the server checks the spot again and answers with a note or an error). */
+  build(kind: BuildKind, x: number, y: number, rot = false): void {
+    this.send({ t: 'build', kind, x, y, ...(rot ? { rot: true } : {}) });
+  }
+
+  demolish(target: { building?: number; plot?: number }): void {
+    this.send({ t: 'demolish', ...target });
+  }
+
+  cancelOrder(order: number): void {
+    this.send({ t: 'cancel', order });
+  }
+
   private send(msg: C2S): boolean {
     const ok = this.o.socket.send(msg);
     if (!ok) this.o.onNotConnected();
@@ -72,7 +85,7 @@ export class GameSession {
         view.applyEntities({ add: v.entities.map(toRenderEntity) });
         view.setSpeed(v.speed);
         view.setTime(v.time);
-        store.patch({ time: v.time, speed: v.speed, population: v.population, stock: v.stock, buildings: v.buildings, plots: v.plots, roster: v.roster, feed: v.feed.slice(-FEED_KEEP) });
+        store.patch({ time: v.time, speed: v.speed, population: v.population, stock: v.stock, buildings: v.buildings, plots: v.plots, roster: v.roster, feed: v.feed.slice(-FEED_KEEP), orders: v.orders, wishes: v.wishes });
         // After a reconnect the server forgets whom we were watching.
         const sel = store.get('selected');
         if (sel !== null) this.send({ t: 'inspect', id: sel });
@@ -94,6 +107,8 @@ export class GameSession {
         if (m.buildings) patch.buildings = m.buildings;
         if (m.plots) patch.plots = m.plots;
         if (m.roster) patch.roster = m.roster;
+        if (m.orders) patch.orders = m.orders;
+        if (m.wishes) patch.wishes = m.wishes;
         store.patch(patch);
         const sel = store.get('selected');
         if (sel !== null && store.get('follow')) {

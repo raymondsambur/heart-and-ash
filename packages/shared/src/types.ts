@@ -43,7 +43,13 @@ export type NpcAct =
   | 'meditate'
   | 'spar'
   | 'serve'
-  | 'loot';
+  | 'loot'
+  | 'build'
+  | 'dig'
+  | 'saw';
+
+/** What a person carries that shows: a board, a log, a stone, a bundle of thatch. */
+export type CarryKind = 'plank' | 'log' | 'stone' | 'bundle';
 
 export type WeaponType = 'sword' | 'blade' | 'spear' | 'staff' | 'fist';
 export const WEAPON_TYPES: WeaponType[] = ['sword', 'blade', 'spear', 'staff', 'fist'];

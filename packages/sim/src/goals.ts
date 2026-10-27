@@ -30,6 +30,10 @@ function workHours(c: Ctx, p: Person): boolean {
 function distanceTo(c: Ctx, p: Person, g: Goal): number {
   const kind = g.kind === 'act' ? ACTIONS[g.action]?.at : g.kind === 'stock' ? (g.good === 'wood' ? 'forest' : g.good === 'stone' ? 'quarry' : g.good === 'herb' || g.good === 'ration' ? 'meadow' : 'store') : undefined;
   if (!kind || kind === 'here' || kind === 'person') return 0;
+  if (g.kind === 'act' && g.order !== undefined) {
+    const s = c.sites.ofKind('buildsite').find((x) => x.order === g.order);
+    return s ? Math.abs(s.x - p.x) + Math.abs(s.y - p.y) : 20;
+  }
   if (g.kind === 'act' && g.plot !== undefined) {
     const s = c.sites.ofKind('field').find((x) => x.plot === g.plot);
     return s ? Math.abs(s.x - p.x) + Math.abs(s.y - p.y) : 20;
@@ -180,7 +184,7 @@ export function candidates(c: Ctx, p: Person): Cand[] {
 }
 
 export function goalKeyOf(g: Goal): string {
-  return g.kind === 'need' ? `n:${g.need}` : g.kind === 'stock' ? `s:${g.good}` : `a:${g.action}:${g.who ?? ''}:${g.plot ?? ''}`;
+  return g.kind === 'need' ? `n:${g.need}` : g.kind === 'stock' ? `s:${g.good}` : `a:${g.action}:${g.who ?? ''}:${g.plot ?? ''}:${g.order ?? ''}:${g.good ?? ''}`;
 }
 
 /**

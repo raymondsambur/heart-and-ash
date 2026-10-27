@@ -2,7 +2,8 @@
  * What happens when an action ends: the handlers of the action library (the table is in `shared/data/actions.ts`).
  * Plain effects (a need rising, a good appearing in the hands) are here; the social and conflict acts are in `social.ts`.
  */
-import { ACTIONS, COOKED_MEAL_POINTS, GAME_HOUR_MS, MEAL_PORTION, RAW_MEAL_POINTS, traitMod, type Good } from '@hearth/shared';
+import { ACTIONS, COOKED_MEAL_POINTS, GAME_HOUR_MS, MEAL_PORTION, RAW_MEAL_POINTS, skillSpeed, traitMod, type Good } from '@hearth/shared';
+import { addWork, deliver } from './construct';
 import { leave } from './life';
 import type { Ctx } from './ctx';
 import { clamp } from './needs';
@@ -70,6 +71,18 @@ function gather(d: Done, good: Good, ratePerHour: number, o: { outdoor?: boolean
   give(d.p, good, qty);
   xp(d, def.skill, 6);
   return qty;
+}
+
+/**
+ * One act of building: labour units are the minutes of the act over an hour, at the pace of a builder of skill 4. The act already
+ * takes less time for a better builder, so skill shows in how often the units come, not in how many there are.
+ */
+function buildWork(d: Done): void {
+  if (d.step.order === undefined) return;
+  const def = ACTIONS[d.step.a];
+  const units = def.minutes / 60 / skillSpeed(4);
+  const worked = addWork(d.c, d.p, d.step.order, units);
+  if (worked && d.step.a !== 'clear_rubble') xp(d, 'building', 5);
 }
 
 /** Spoken for by the social code. */
@@ -158,6 +171,22 @@ export const HANDLERS: Record<string, Handler> = {
   forage(d) {
     const season = d.c.season === 2 ? 0.8 : 1;
     gather(d, 'ration', 0.4 * season);
+  },
+  // ---- construction (M2): the work is in construct.ts ------------------------------------------------------------
+  deliver_material(d) {
+    if (d.step.order !== undefined) deliver(d.c, d.p, d.step.order);
+  },
+  build(d) {
+    buildWork(d);
+  },
+  demolish(d) {
+    buildWork(d);
+  },
+  clear_rubble(d) {
+    buildWork(d);
+  },
+  cut_thatch(d) {
+    gather(d, 'thatch', 1.2);
   },
   gather_herbs(d) {
     gather(d, 'herb', 0.5);

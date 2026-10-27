@@ -5,7 +5,7 @@
  */
 import type { CharState, ToolKind } from '../art/anim';
 import { TILE_H, TILE_W, type BuildingDef, type PlotDef, type Speed, type TimeView } from '@hearth/shared';
-import type { DecodedWorld, GameViewApi, PickGesture, PickResult, RenderEntity, RenderEntityPatch } from './api';
+import type { DecodedWorld, GameViewApi, PickGesture, PickResult, Placement, RenderEntity, RenderEntityPatch } from './api';
 import { Camera } from './camera';
 import { ChunkManager } from './chunks';
 import { SimClock, WorldClock } from './clock';
@@ -124,6 +124,8 @@ export class GameView implements GameViewApi {
   loadWorld(world: DecodedWorld): void {
     this.world = new WorldModel(world);
     this.chunks = new ChunkManager(this.world);
+    const chunks = this.chunks;
+    this.world.onTileChange = (x, y) => chunks.invalidateTile(x, y);
     this.bank = new SpriteBank(this.world);
     this.sceneR = new SceneRenderer(this.world, this.bank, this.ents);
     this.applySeason(this.clock.season);
@@ -144,7 +146,7 @@ export class GameView implements GameViewApi {
   }
 
   setPlots(list: PlotDef[]): void {
-    if (this.world) this.world.plots = list;
+    this.world?.setPlots(list);
   }
 
   applyEntities(delta: { add?: RenderEntity[]; upd?: RenderEntityPatch[]; del?: number[] }): void {
@@ -181,6 +183,10 @@ export class GameView implements GameViewApi {
   setSelected(entityId: number | null): void {
     this.selectedId = entityId;
     if (this.sceneR) this.sceneR.selectedId = entityId;
+  }
+
+  setPlacement(p: Placement | null): void {
+    if (this.sceneR) this.sceneR.placement = p;
   }
 
   onPick(cb: (pick: PickResult, gesture: PickGesture) => void): void {

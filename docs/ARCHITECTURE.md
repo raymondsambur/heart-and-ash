@@ -59,7 +59,7 @@ This is where the "anyone can do anything" promise lives.
 
 ### Construction
 
-A building has a `blueprint` (stages, material list per stage, labour, skill) and a state (`stage`, `progress`, `delivered materials`). Builders fetch materials, work the current stage and move it forward. The client draws the stage sprite and the scaffolding from the state alone.
+`shared/data/blueprints.ts` is the blueprint table: per kind the footprint, the labour and the stages with the materials each needs; `canPlace` (shared with the client) says where a plot may go. An order (`st.orders`, `sim/construct.ts`) owns the work: it posts haul and build jobs to the job board, builders deliver material and add labour, stages advance in order, and the finished building takes its role (a home, a second store, a water site, a field). Demolition runs the stages backwards, returns part of the material and leaves rubble. The building or plot carries a small `con` (stage, % of the stage, material on the plot); the client draws from that alone (`art/construction.ts`). The map's own grid is never edited: a dynamic overlay records what now stands.
 
 ### The Outside
 
@@ -76,8 +76,8 @@ An abstract place (or a few) with its own simple state (wealth, needs, mood towa
 
 ## Client (`packages/client`)
 
-- The isometric renderer and procedural art of the old game, adapted: terrain chunks, sprite bank, paper-doll people, the building rasteriser. New: construction stage sprites and scaffolding, builder poses, plot overlays.
-- The UI shell (panels, tooltips, toasts, i18n) is reused. New: village overview, villager sheet, orders, rules and priorities, reports.
+- The isometric renderer and procedural art of the old game, adapted: terrain chunks, sprite bank, paper-doll people, the building rasteriser. Construction stage sprites with scaffolding, material piles and rubble, builder poses and carried loads, field ground that follows the plots (M2).
+- The UI shell (panels, tooltips, toasts, i18n) is reused. Villager sheet, build menu and order list (M2); still to come: village overview, rules and priorities, reports.
 - The client holds no game rules; it draws what the server sends.
 
 ## Deployment

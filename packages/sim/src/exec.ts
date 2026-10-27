@@ -16,6 +16,7 @@ import { plan, planText } from './planner';
 import { compliance } from './goals';
 import { speedOf } from './skills';
 import type { Act, Cand, Goal, Job, Person, Step } from './types';
+import { shortfall, stageReady } from './construct';
 import { addMood, mem, stat } from './util';
 
 const IDLE_RECHECK = 30 * MIN;
@@ -164,6 +165,12 @@ export function decide(c: Ctx, p: Person): void {
       continue;
     }
     claim(c, p, job);
+    // A load for a building site is only as big as what is still missing.
+    const cg = cand.goal;
+    if (cg.kind === 'act' && cg.action === 'deliver_material' && cg.order !== undefined) {
+      const o = c.st.orders.find((x) => x.id === cg.order);
+      for (const s of res.steps) if (s.a === 'take_item' && s.good && o) s.n = Math.max(1, Math.min(5, Math.ceil(shortfall(o, s.good))));
+    }
     const last = res.steps.length - 1;
     const g = cand.goal;
     if (g.kind === 'act') {
@@ -172,6 +179,7 @@ export function decide(c: Ctx, p: Person): void {
         st.who = g.who ?? st.who;
         st.plot = g.plot ?? st.plot;
         st.site = g.site ?? st.site;
+        st.order = g.order ?? st.order;
       }
     }
     p.goal = g;
@@ -298,6 +306,9 @@ function resolveSite(c: Ctx, p: Person, step: Step): boolean {
         site = best ?? undefined;
         break;
       }
+      case 'buildsite':
+        site = c.sites.ofKind('buildsite').find((s) => s.order === step.order);
+        break;
       default:
         site = c.sites.nearest(step.at, p.x, p.y, known) ?? undefined;
     }
@@ -313,7 +324,7 @@ function resolveSite(c: Ctx, p: Person, step: Step): boolean {
       return true;
     }
   }
-  const spot = step.at === 'forest' || step.at === 'quarry' || step.at === 'meadow' || step.at === 'stream' || step.at === 'water' || step.at === 'plaza' ? spotNear(c, site.x, site.y, 1) : { x: site.x, y: site.y };
+  const spot = step.at === 'forest' || step.at === 'quarry' || step.at === 'buildsite' || step.at === 'meadow' || step.at === 'stream' || step.at === 'water' || step.at === 'plaza' ? spotNear(c, site.x, site.y, 1) : { x: site.x, y: site.y };
   step.tx = spot.x;
   step.ty = spot.y;
   return true;
@@ -345,6 +356,14 @@ function preconditionsOk(c: Ctx, p: Person, step: Step): string | null {
     if (!ok) return 'the field is not ready for that';
   }
   if (step.a === 'light_fire' && p.home === null) return 'no hearth';
+  if (step.a === 'build' || step.a === 'demolish' || step.a === 'clear_rubble' || step.a === 'deliver_material') {
+    const o = c.st.orders.find((x) => x.id === step.order);
+    if (!o) return 'that job is done';
+    if (step.a === 'build' && (o.mode !== 'build' || !stageReady(o))) return o.mode === 'build' ? (o.note ?? 'waiting for material') : 'that job has changed';
+    if (step.a === 'demolish' && o.mode !== 'demolish') return 'that job has changed';
+    if (step.a === 'clear_rubble' && o.mode !== 'rubble') return 'that job has changed';
+    if (step.a === 'deliver_material' && o.mode !== 'build') return 'that job has changed';
+  }
   return null;
 }
 
@@ -353,6 +372,15 @@ function runStep(c: Ctx, p: Person): void {
   if (!step) return;
   const def = ACTIONS[step.a];
   if (!def) return failStep(c, p, 'unknown action');
+
+  // The order this step was for is finished or cancelled: nothing to fail, just look for something else to do.
+  if (step.order !== undefined && !c.st.orders.some((o) => o.id === step.order)) {
+    p.plan = [];
+    p.planIdx = 0;
+    p.goal = null;
+    p.nextDecide = c.now;
+    return;
+  }
 
   // person-aimed steps
   if (def.at === 'person') return runJoint(c, p, step);

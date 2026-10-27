@@ -167,7 +167,7 @@ describe('goals', () => {
     expect(rank(k.c, p, [a, mk('other', 1.3)])[0].label).toBe('other');
     p.goalSince = k.c.now - KEEP_MS - 1;
     expect(rank(k.c, p, [a, mk('other', 1.1)])[0].label).toBe('other');
-    expect(goalKeyOf(a.goal)).toBe('a:pray::');
+    expect(goalKeyOf(a.goal)).toBe('a:pray::::');
   });
 });
 

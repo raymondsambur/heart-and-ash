@@ -36,6 +36,8 @@ Status: built on the branch `m1-villagers` (stacked on `m0-skeleton`); what was 
 
 Done when: ordering a house shows people fetching materials and the house rising stage by stage; demolishing one takes it down in reverse; progress shows in the orders panel.
 
+Status: built on the branch `m2-construction`; what was built, what differs from the spec and the measured numbers are in `docs/notes/m2.md`.
+
 ## M3: economy, seasons and survival
 
 - Production and consumption of food, wood, stone, cloth; stockpiles, spoilage, rationing.

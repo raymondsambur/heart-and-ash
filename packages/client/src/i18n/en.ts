@@ -68,6 +68,8 @@ export const en: Record<string, string> = {
   'stock.planks': 'Planks',
   'stock.stone': 'Stone',
   'stock.cloth': 'Cloth',
+  'stock.thatch': 'Thatch',
+  'stock.meal': 'Meals',
 
   // ---- connection ---------------------------------------------------------
   'conn.connecting': 'Connecting…',
@@ -135,6 +137,34 @@ export const en: Record<string, string> = {
   'feed.when': 'Day {day}, {season}, {hour}:00',
 
   'err.notConnected': 'Not connected to the village.',
+
+  // ---- build panel ---------------------------------------------------------
+  'build.title': 'Build',
+  'build.toggle': 'Show or hide the build menu',
+  'build.free': 'No materials',
+  'build.demolish': 'Take down',
+  'build.demolishBlurb': 'Pick a building or field to take down. Part of the material comes back.',
+  'build.hintPlace': 'Click to lay out the {what}. Right click or Esc to stop.',
+  'build.hintRotate': 'Click to lay out the {what}. R turns it, right click or Esc to stop.',
+  'build.hintDemolish': 'Click a building or field to take it down. Right click or Esc to stop.',
+  'build.nothingThere': 'There is nothing to take down there.',
+  'build.busy': 'That is already being worked on.',
+  'build.cannotTakeDown': 'That cannot be taken down.',
+  'build.orders': 'Build orders',
+  'build.ordersCount': '{n} orders in hand',
+  'build.ordersCount.one': '{n} order in hand',
+  'build.ordersCount.other': '{n} orders in hand',
+  'build.cancelOrder': 'Cancel this order',
+  'build.takeDown': 'Take it down',
+  'build.standing': 'Standing and finished.',
+  'build.takingDown': 'Taking down: {what}',
+  'build.clearing': 'Clearing rubble: {what}',
+  'build.look': 'Look at it',
+  'build.workers': '{n} villagers on it',
+  'build.workers.one': '{n} villager on it',
+  'build.workers.other': '{n} villagers on it',
+  'build.noWorkers': 'Nobody is working on it yet',
+  'build.wishes': 'Wishes',
 
   // ---- validation ----------------------------------------------------------
   'val.username.required': 'Enter a username.',

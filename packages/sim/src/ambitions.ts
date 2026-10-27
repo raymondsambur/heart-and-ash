@@ -3,7 +3,8 @@
  * turns the person's situation into the next goal (a chat, a court, a lesson, a trip to the quarry) or into a reason it is
  * stuck, and measures progress from milestones. Ambition goals compete with jobs in spare time.
  */
-import { AMBITIONS, AMBITION_KINDS, DAYS_PER_YEAR, SKILL_IDS, traitMod, type Ambition, type AmbitionKind, type SkillId } from '@hearth/shared';
+import { AMBITIONS, AMBITION_KINDS, BLUEPRINTS, DAYS_PER_YEAR, SKILL_IDS, stageWork, traitMod, type Ambition, type AmbitionKind, type SkillId } from '@hearth/shared';
+import { stageReady } from './construct';
 import type { Ctx } from './ctx';
 import { pushFeed } from './feed';
 import { worstGrudge } from './memory';
@@ -222,15 +223,62 @@ function pickPupil(c: Ctx, p: Person): Person | null {
   return best;
 }
 
+/** Move a person (and the family that lives with them) into a house. */
+function moveIn(c: Ctx, p: Person, buildingId: number): void {
+  const family = [p];
+  if (p.partner !== null) {
+    const m = c.person(p.partner);
+    if (m) family.push(m);
+  }
+  for (const kid of p.children) {
+    const k = c.person(kid);
+    if (k && k.home === p.home && ageOf(k, c.day) < COMING_OF_AGE) family.push(k);
+  }
+  for (const m of family) m.home = buildingId;
+  p.counters.ownHouse = buildingId;
+  pushFeed(c.st, c.pending, 'home', `${p.name} moved into a house of ${family.length > 1 ? 'their family\'s' : 'their'} own.`, [p.id]);
+}
+
+/** A dream that needs a building: pitch in on an order for it, or say what is missing. */
+function helpBuild(c: Ctx, p: Person, kind: 'house' | 'shrine', what: string, missing: string, where: (b: { x: number; y: number }) => boolean = () => true): Pursuit {
+  const o = c.st.orders.find((x) => x.kind === kind && x.mode === 'build' && where(x));
+  if (!o) return { progress: Math.min(0.3, p.silver / 100), stuck: missing };
+  const bp = BLUEPRINTS[kind];
+  let done = 0;
+  for (let i = 0; i < o.done; i++) done += stageWork(bp, i);
+  const progress = 0.3 + 0.65 * Math.min(1, (done + o.work) / bp.labour);
+  if (!stageReady(o)) return { progress, stuck: o.note ?? 'the builders wait for material' };
+  return { progress, goal: act('build', `help raise ${what}`, { order: o.id }) };
+}
+
 function pursue(c: Ctx, p: Person, a: Ambition): Pursuit {
   const day = c.day;
   switch (a.kind) {
-    case 'own_house':
-      return { progress: Math.min(0.5, p.silver / 80), stuck: 'waiting for a building plot (houses are raised in a later update)' };
-    case 'build_shrine':
-      return { progress: 0, stuck: 'waiting for the means to build (a later update)' };
-    case 'be_left_alone':
-      return { progress: 0, stuck: 'no hut at the edge of the village yet (a later update)' };
+    case 'own_house': {
+      if (p.counters.ownHouse !== undefined) return { fulfilled: true, progress: 1 };
+      // A house nobody lives in: move in.
+      const empty = c.st.buildings.find((b) => b.kind === 'house' && !b.con && !c.st.people.some((q) => q.home === b.id));
+      if (empty) {
+        moveIn(c, p, empty.id);
+        return { fulfilled: true, progress: 1 };
+      }
+      return helpBuild(c, p, 'house', 'the house they hope to live in', 'waiting for the manager to give ground for a house');
+    }
+    case 'build_shrine': {
+      if (p.counters.builtShrine !== undefined) return { fulfilled: true, progress: 1 };
+      return helpBuild(c, p, 'shrine', 'the shrine', 'waiting for a shrine to be ordered');
+    }
+    case 'be_left_alone': {
+      const home = p.home !== null ? c.st.buildings.find((b) => b.id === p.home) : undefined;
+      const far = (b: { x: number; y: number }): boolean => Math.max(Math.abs(b.x - c.world.start.center.x), Math.abs(b.y - c.world.start.center.y)) >= 12;
+      if (home && !home.con && far(home) && c.st.people.filter((q) => q.home === home.id).length <= 1 + (p.partner !== null ? 1 : 0)) return { fulfilled: true, progress: 1 };
+      const spare = c.st.buildings.find((b) => b.kind === 'house' && !b.con && far(b) && !c.st.people.some((q) => q.home === b.id));
+      if (spare) {
+        moveIn(c, p, spare.id);
+        return { fulfilled: true, progress: 1 };
+      }
+      return helpBuild(c, p, 'house', 'the house away from the crowd', 'waiting for a house away from the crowd', far);
+    }
 
     case 'marry': {
       if (p.partner !== null) return { fulfilled: true, progress: 1 };

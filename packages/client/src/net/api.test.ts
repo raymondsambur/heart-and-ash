@@ -57,7 +57,7 @@ describe('base64 world decoding', () => {
   });
 
   it('decodes a world payload and rejects a size mismatch', () => {
-    const payload = { seed: 1, w: 2, h: 2, terrain: encodeBase64(new Uint8Array([1, 2, 3, 4])), objects: encodeBase64(new Uint8Array([0, 0, 0, 0])), blight: encodeBase64(new Uint8Array(4)) };
+    const payload = { seed: 1, w: 2, h: 2, terrain: encodeBase64(new Uint8Array([1, 2, 3, 4])), objects: encodeBase64(new Uint8Array([0, 0, 0, 0])), blight: encodeBase64(new Uint8Array(4)), center: { x: 1, y: 1 } };
     const w = decodeWorld(payload);
     expect([...w.terrain]).toEqual([1, 2, 3, 4]);
     expect([...w.blight]).toEqual([0, 0, 0, 0]);

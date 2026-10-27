@@ -20,6 +20,31 @@ export interface BuildingSpec {
   fallen: boolean;
 }
 
+/**
+ * How far along a building under construction (or demolition) is, as what stands: each part from 0 (not there) to 1 (finished).
+ * `genConstruction` builds this from the sim's `ConView`; `basic()` and the staged kinds draw only what the fractions allow.
+ */
+export interface ConProgress {
+  /** The footing: rises from the ground. */
+  foundation: number;
+  /** The posts and beams. */
+  frame: number;
+  /** The walls, from the footing up. */
+  walls: number;
+  /** How much of the roof is laid, row by row from the eave. */
+  roof: number;
+  /** Material on the plot: 0 none, 1 a few, 2 some, 3 a lot, by good. */
+  pile: { planks: number; stone: number; thatch: number };
+  /** The ground cleared and trodden bare: 0 untouched, 1 done. */
+  ground: number;
+  /** Stakes and cord mark the plot (until the walls rise). */
+  staked: boolean;
+  /** Pulling it down rather than putting it up. */
+  demolish: boolean;
+  /** Rubble left on the plot: 0 none, up to 1 a full heap (shrinks as it is cleared). */
+  rubble: number;
+}
+
 export interface LightDef {
   x: number;
   y: number;
@@ -58,6 +83,8 @@ export interface Ctx {
   smoke: SmokeDef[];
   /** Pseudo-random in [0,1) for this building. */
   rnd(k: number): number;
+  /** Set while a building under construction or demolition is drawn. */
+  con?: ConProgress;
   metrics: { door: number; eave: number };
 }
 

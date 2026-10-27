@@ -63,6 +63,8 @@ const village: VillageView = {
   stock: { ration: 5 },
   roster: [],
   feed: [],
+  orders: [],
+  wishes: [],
 };
 
 function setup() {

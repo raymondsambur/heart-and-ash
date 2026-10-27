@@ -294,6 +294,8 @@ describe('sim: save and load', () => {
 describe('sim: golden run', () => {
   // A fingerprint of seed 1337 after four game days. It changes whenever the behaviour of the village changes on purpose:
   // when it does, check the new run looks right (npm run soak) and update the digest and the facts below together.
+  // M2: the facts are unchanged; the digest moved only because the snapshot is version 3 (orders and id counters), a stock job
+  // for thatch, a longer ban-key format and one ambition's stuck text (diffed against the M1 snapshot of the same run).
   it('matches the recorded run', () => {
     const sim = createSim({ seed: 1337 });
     sim.step(4 * DAY);
@@ -307,4 +309,4 @@ describe('sim: golden run', () => {
   });
 });
 
-const GOLDEN = { facts: { people: 12, day: 4, jobsDone: 28, meals: 92, chats: 74 }, digest: '4048763c:32766' };
+const GOLDEN = { facts: { people: 12, day: 4, jobsDone: 28, meals: 92, chats: 74 }, digest: '9d76eb34:33007' };

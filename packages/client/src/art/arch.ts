@@ -35,6 +35,7 @@ export const GLOW_WARM = hex('#ffcf73');
 export const GLOW_GREEN = hex('#9dffb0');
 export const GLOW_FIRE = hex('#ff8a3a');
 const PANE = hex('#2c3a4b');
+const RAFTER = hex('#9a7448');
 const PANE_L = hex('#4b6179');
 
 /** Lit colour: applies the face light with the hue-shifted ramp. */
@@ -219,6 +220,11 @@ export interface RoofOpts {
   rows?: number;
   /** Holes in a fallen roof. */
   holes?: number;
+  /**
+   * A roof being laid (0..1): the tiles are laid row by row from the eave towards the ridge, and what is not covered yet is bare
+   * rafters and battens you can see through. Absent or 1 = finished.
+   */
+  cover?: number;
 }
 
 export function roofHeight(o: RoofOpts, L: number, R: number, T: number, B: number): (u: number, v: number) => number {
@@ -248,6 +254,7 @@ export function roof(sc: Scene3D, st: Style, u0: number, v0: number, u1: number,
   const emax = o.gable === 'u' ? (B - T) / 2 : o.gable === 'v' ? (R - L) / 2 : Math.min(R - L, B - T) / 2;
   const rows = o.rows ?? 7;
   const holes = o.holes ?? 0;
+  const cover = Math.max(0, Math.min(1, o.cover ?? 1));
   const base = charred(st, o.color, 0.3);
   const shader: Shader = (u, v, lit, x, y) => {
     const cu = Math.min(u - L, R - u);
@@ -269,6 +276,13 @@ export function roof(sc: Scene3D, st: Style, u0: number, v0: number, u1: number,
     }
     if (e < 0) return 0;
     if (holes > 0 && vnoise(u * 3.1, v * 3.1, st.seed + 9) > 1 - holes && e > 0.15) return 0;
+    if (cover < 1 && e > cover * emax + 0.04) {
+      // not laid yet: rafters run up the slope, battens across it, and the sky shows between
+      const raf = (along * rows * 0.85 * 0.9) % 1;
+      if (raf < 0.17) return lc(RAFTER, lit);
+      if ((e * rows * 1.1) % 1 < 0.13) return lc(scale(RAFTER, 0.82), lit);
+      return 0;
+    }
     const row = Math.floor(e * rows);
     const fr = e * rows - row;
     const col = Math.floor(along * rows * 0.85 + (row & 1) * 0.5);
@@ -300,7 +314,8 @@ export function roof(sc: Scene3D, st: Style, u0: number, v0: number, u1: number,
   const nu = Math.max(4, Math.ceil((R - L) * 6));
   const nv = Math.max(4, Math.ceil((B - T) * 6));
   sc.heightfield(L, T, R, B, nu, nv, h, shader);
-  // eave fascia on the two visible edges
+  // eave fascia on the two visible edges (once the first rows are down)
+  if (cover < 0.12) return { L, R, T, B, h };
   const fz = 3.5 / sc.zk;
   const fas: Shader = (_s, t, lit) => lc(st.fallen ? mix(LACQUER_D, st.soot, 0.6) : t > 2 ? scale(o.color, 0.55) : LACQUER_D, lit);
   const seg = Math.max(4, Math.ceil((R - L) * 4));

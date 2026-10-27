@@ -2,11 +2,11 @@ import { GOODS, Rng, SPEEDS, generateWorld, type BuildingDef, type Good, type Pl
 import { newField } from './actions';
 import { drawTraits, startingSkills, TRADE_ROTA } from './people';
 import { SiteIndex } from './sites';
-import type { Field, FeedItem, Grave, Job, Person, SimState } from './types';
+import type { Field, FeedItem, Grave, Job, Order, Person, SimState } from './types';
 import { WEATHER_KINDS } from './weather';
 
 /** Bump when the shape of the saved state changes, and add a step to `MIGRATIONS`. */
-export const SNAPSHOT_VERSION = 2;
+export const SNAPSHOT_VERSION = 3;
 
 export interface SimSnapshot {
   v: number;
@@ -26,6 +26,10 @@ export interface SimSnapshot {
   jobs: Job[];
   nextJobId: number;
   jobsAt: number;
+  orders: Order[];
+  nextOrderId: number;
+  nextBuildingId: number;
+  nextPlotId: number;
   people: Person[];
   graves: Grave[];
   feed: FeedItem[];
@@ -80,6 +84,11 @@ const MIGRATIONS: Record<number, (s: Raw) => Raw> = {
     const out: Raw = { ...s, v: 2, stock, people, fields: plots.filter((p) => p.kind === 'field').map((p) => newField(p.id)), jobs: [], nextJobId: 1, jobsAt: -1, graves: [], feed: [], nextFeedId: 1, fires: {}, lastDay: 0, stats: {}, pool: 8 };
     delete out.villagers;
     return out;
+  },
+  // v2 (M1) to v3 (M2): the village can build. No orders yet; the counters for new buildings and plots start after the ones that exist.
+  2: (s) => {
+    const maxOf = (list: unknown): number => (Array.isArray(list) ? list.reduce<number>((m, x) => Math.max(m, typeof (x as { id?: unknown })?.id === 'number' ? (x as { id: number }).id : 0), 0) : 0);
+    return { ...s, v: 3, orders: [], nextOrderId: 1, nextBuildingId: maxOf(s.buildings) + 1, nextPlotId: maxOf(s.plots) + 1 };
   },
 };
 
@@ -150,6 +159,10 @@ export function serializeState(st: SimState, rng: Rng): SimSnapshot {
       jobs: st.jobs,
       nextJobId: st.nextJobId,
       jobsAt: st.jobsAt,
+      orders: st.orders,
+      nextOrderId: st.nextOrderId,
+      nextBuildingId: st.nextBuildingId,
+      nextPlotId: st.nextPlotId,
       people: st.people,
       graves: st.graves,
       feed: st.feed,
@@ -223,6 +236,10 @@ export function restoreState(saved: unknown, rng: Rng): SimState {
     jobs: clone(arr(s, 'jobs')),
     nextJobId: num(s, 'nextJobId'),
     jobsAt: num(s, 'jobsAt'),
+    orders: clone(arr(s, 'orders')),
+    nextOrderId: num(s, 'nextOrderId'),
+    nextBuildingId: num(s, 'nextBuildingId'),
+    nextPlotId: num(s, 'nextPlotId'),
     people: clone(people),
     graves: clone(arr(s, 'graves')),
     feed: clone(arr(s, 'feed')),
