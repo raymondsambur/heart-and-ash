@@ -16,3 +16,4 @@ export * from './data/actions';
 export * from './data/ambitions';
 export * from './data/blueprints';
 export * from './data/balance';
+export * from './data/policy';

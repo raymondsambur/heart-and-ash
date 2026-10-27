@@ -2,7 +2,7 @@
  * GameSession: the live link between the socket, the store and the world renderer. Feeds server messages into the
  * store and the renderer, and exposes the few things the UI may ask for (speed).
  */
-import type { BuildKind, C2S, NoteLevel, Speed, VillageView } from '@hearth/shared';
+import type { BuildKind, C2S, JobGroup, NoteLevel, RuleDef, Speed, VillageView } from '@hearth/shared';
 
 /** The feed keeps this many lines on the client. */
 const FEED_KEEP = 120;
@@ -64,6 +64,27 @@ export class GameSession {
     this.send({ t: 'cancel', order });
   }
 
+  setPriority(group: JobGroup, level: number): void {
+    this.send({ t: 'priority', group, level });
+  }
+
+  /** Add a rule (`id` 0) or change one. */
+  saveRule(rule: RuleDef): void {
+    this.send({ t: 'rule', rule });
+  }
+
+  deleteRule(id: number): void {
+    this.send({ t: 'rule_del', id });
+  }
+
+  answer(offer: number, option: string): void {
+    this.send({ t: 'answer', offer, option });
+  }
+
+  markRead(report: number): void {
+    this.send({ t: 'read', report });
+  }
+
   /** How much of a portion each person is given: 0 normal, 1 tight, 2 strict. */
   setRation(level: 0 | 1 | 2): void {
     this.send({ t: 'ration', level });
@@ -90,7 +111,7 @@ export class GameSession {
         view.applyEntities({ add: v.entities.map(toRenderEntity) });
         view.setSpeed(v.speed);
         view.setTime(v.time);
-        store.patch({ time: v.time, speed: v.speed, population: v.population, stock: v.stock, buildings: v.buildings, plots: v.plots, roster: v.roster, feed: v.feed.slice(-FEED_KEEP), orders: v.orders, wishes: v.wishes, status: v.status });
+        store.patch({ time: v.time, speed: v.speed, population: v.population, stock: v.stock, buildings: v.buildings, plots: v.plots, roster: v.roster, feed: v.feed.slice(-FEED_KEEP), orders: v.orders, wishes: v.wishes, status: v.status, policy: v.policy, reports: v.reports });
         // After a reconnect the server forgets whom we were watching.
         const sel = store.get('selected');
         if (sel !== null) this.send({ t: 'inspect', id: sel });
@@ -115,6 +136,8 @@ export class GameSession {
         if (m.orders) patch.orders = m.orders;
         if (m.wishes) patch.wishes = m.wishes;
         if (m.status) patch.status = m.status;
+        if (m.policy) patch.policy = m.policy;
+        if (m.reports) patch.reports = m.reports;
         store.patch(patch);
         const sel = store.get('selected');
         if (sel !== null && store.get('follow')) {

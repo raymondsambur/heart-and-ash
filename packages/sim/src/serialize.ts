@@ -4,11 +4,13 @@ import { drawTraits, startingSkills, TRADE_ROTA } from './people';
 import { SiteIndex } from './sites';
 import { dayOf } from './calendar';
 import { ensureDirector } from './director';
-import type { DirectorState, Field, FeedItem, Grave, Job, Order, Person, SimState } from './types';
+import { defaultPriorities } from './policy';
+import { emptyBase } from './reports';
+import type { Base, DirectorState, Field, FeedItem, Grave, Job, Offer, Order, Person, Report, Rule, SimState } from './types';
 import { WEATHER_KINDS } from './weather';
 
 /** Bump when the shape of the saved state changes, and add a step to `MIGRATIONS`. */
-export const SNAPSHOT_VERSION = 4;
+export const SNAPSHOT_VERSION = 5;
 
 export interface SimSnapshot {
   v: number;
@@ -43,6 +45,17 @@ export interface SimSnapshot {
   rationing: 0 | 1 | 2;
   hearthDay: number;
   dir: DirectorState;
+  priorities: number[];
+  rules: Rule[];
+  nextRuleId: number;
+  offers: Offer[];
+  nextOfferId: number;
+  reports: Report[];
+  nextReportId: number;
+  dayBase: Base;
+  seasonBase: Base;
+  away: SimState['away'];
+  crisis: string | null;
 }
 
 export class SnapshotError extends Error {}
@@ -98,6 +111,8 @@ const MIGRATIONS: Record<number, (s: Raw) => Raw> = {
   // v3 (M2) to v4 (M3): rationing, the hearths and the events director. An old village starts with a fresh director whose first
   // raid is a few weeks away from the day it is loaded (the director fills in `nextRaid` when it first runs).
   3: (s) => ({ ...s, v: 4, rationing: 0, hearthDay: -1, dir: null }),
+  // v4 (M3) to v5 (M4): priorities, rules, decisions and reports. All start empty; the first day's report is skipped (no base yet).
+  4: (s) => ({ ...s, v: 5 }),
 };
 
 /** The parts of a person the M0 villager did not have. */
@@ -182,6 +197,17 @@ export function serializeState(st: SimState, rng: Rng): SimSnapshot {
       rationing: st.rationing,
       hearthDay: st.hearthDay,
       dir: st.dir,
+      priorities: st.priorities,
+      rules: st.rules,
+      nextRuleId: st.nextRuleId,
+      offers: st.offers,
+      nextOfferId: st.nextOfferId,
+      reports: st.reports,
+      nextReportId: st.nextReportId,
+      dayBase: st.dayBase,
+      seasonBase: st.seasonBase,
+      away: st.away,
+      crisis: st.crisis,
     }),
   ) as SimSnapshot;
 }
@@ -262,5 +288,16 @@ export function restoreState(saved: unknown, rng: Rng): SimState {
     rationing: s.rationing === 1 || s.rationing === 2 ? s.rationing : 0,
     hearthDay: typeof s.hearthDay === 'number' ? s.hearthDay : -1,
     dir: ensureDirector(typeof s.dir === 'object' && s.dir !== null ? clone<DirectorState>(s.dir) : undefined, rng, dayOf(num(s, 'totalMs'))),
+    priorities: Array.isArray(s.priorities) && s.priorities.length === defaultPriorities().length ? (s.priorities as number[]).slice() : defaultPriorities(),
+    rules: Array.isArray(s.rules) ? clone<Rule[]>(s.rules) : [],
+    nextRuleId: typeof s.nextRuleId === 'number' ? s.nextRuleId : 1,
+    offers: Array.isArray(s.offers) ? clone<Offer[]>(s.offers) : [],
+    nextOfferId: typeof s.nextOfferId === 'number' ? s.nextOfferId : 1,
+    reports: Array.isArray(s.reports) ? clone<Report[]>(s.reports) : [],
+    nextReportId: typeof s.nextReportId === 'number' ? s.nextReportId : 1,
+    dayBase: typeof s.dayBase === 'object' && s.dayBase !== null ? clone<Base>(s.dayBase) : emptyBase(),
+    seasonBase: typeof s.seasonBase === 'object' && s.seasonBase !== null ? clone<Base>(s.seasonBase) : emptyBase(),
+    away: typeof s.away === 'object' && s.away !== null ? clone<SimState['away']>(s.away) : null,
+    crisis: typeof s.crisis === 'string' ? s.crisis : null,
   };
 }

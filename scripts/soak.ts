@@ -7,7 +7,7 @@
  * abandoned and still stuck, the longest time anybody was stuck with no way forward, the feed by kind, and the
  * average mood. A village that starves, freezes or goes silent shows up here before it shows up in play.
  */
-import { AMBITION_KINDS, DAYS_PER_YEAR, GAME_DAY_MS, GAME_HOUR_MS } from '@hearth/shared';
+import { AMBITION_KINDS, CARETAKER_RULES, DAYS_PER_YEAR, GAME_DAY_MS, GAME_HOUR_MS } from '@hearth/shared';
 import { createSim } from '@hearth/sim';
 import { createManager } from './manager';
 
@@ -21,7 +21,8 @@ const SEEDS = arg('seeds', '1,2,3').split(',').map(Number);
 const POP = Number(arg('pop', '12'));
 const quiet = process.argv.includes('--quiet');
 /** The scripted manager places orders once a game day; `--no-manager` leaves the village to itself. */
-const manage = !process.argv.includes('--no-manager');
+const rulesMode = process.argv.includes('--rules');
+const manage = !process.argv.includes('--no-manager') && !rulesMode;
 
 interface Result {
   seed: number;
@@ -58,6 +59,8 @@ function standingOf(list: readonly { kind: string; con?: unknown }[]): Record<st
 function run(seed: number): Result {
   const sim = createSim({ seed, population: POP });
   const manager = createManager();
+  // `--rules`: nobody places orders; the village runs on the suggested standing rules alone (what it does while you are away).
+  if (rulesMode) for (const r of CARETAKER_RULES) sim.command({ t: 'rule', rule: { ...r, id: 0 } });
   const t0 = performance.now();
   let low = POP;
   let lowDay = 0;
@@ -133,6 +136,7 @@ for (const seed of SEEDS) {
   console.log(`  building: ${manage ? `orders placed ${Object.entries(r.placed).map(([k, v]) => `${k} ${v}`).join(', ') || 'none'}; ` : ''}finished ${s.buildings_finished ?? 0}, taken down ${s.buildings_removed ?? 0}, still in hand ${r.orders}; standing ${Object.entries(r.standing).map(([k, v]) => `${k} ${v}`).join(', ')}`);
   console.log(`  longest stuck with no way forward: ${r.stuckMax.toFixed(1)} game days; longest run of idle daily samples: ${r.idleMax} days`);
   console.log(`  winter and events: wood burned ${Math.round(s.wood_burned ?? 0)}, cold nights ${s.cold_nights ?? 0}, bad harvests ${s.bad_harvests ?? 0}, plagues ${s.plagues ?? 0} (cases ${s.plague_cases ?? 0}, recovered ${s.plague_recoveries ?? 0}), refugees taken ${s.refugees_taken ?? 0} / turned away ${s.refugees_turned_away ?? 0}`);
+  console.log(`  rules acted ${s.rules_fired ?? 0} times; decisions settled by the village ${s.offers_auto ?? 0}`);
   console.log(`  raids: ${s.raids ?? 0} (repelled ${s.raids_repelled ?? 0}, skirmish ${s.raids_skirmish ?? 0}, overrun ${s.raids_overrun ?? 0}), goods lost ${Math.round(s.loot ?? 0)}, wounds ${s.wounds ?? 0}`);
   console.log(`  population at the end of each year: ${r.byYear.join(', ')}${r.collapsedYear ? ` (collapsed in year ${r.collapsedYear})` : ''}`);
   console.log(`  work: jobs done ${s.jobs_done ?? 0}, refusals ${s.refusals ?? 0}, step failures ${s.step_failures ?? 0}`);

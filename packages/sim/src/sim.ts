@@ -16,6 +16,7 @@ import {
   type PathGrid,
   type PersonSheet,
   type PlotDef,
+  type RuleDef,
   type Speed,
   type TimeView,
   type VillageView,
@@ -26,7 +27,11 @@ import { drawAmbitions, reviewAmbitions } from './ambitions';
 import { clockOf, dayOf } from './calendar';
 import { cancelOrder, computeOverlay, orderDemolish, orderViews, placeOrder, wishes } from './construct';
 import { directorDay, newDirector } from './director';
-import { lightHearths, statusOf } from './economy';
+import { answerOffer, expireOffers } from './offers';
+import { deleteRule, defaultPriorities, runRules, setPriority, setRule } from './policy';
+import { awayReport, baseOf, dayReport, emptyBase, markRead, seasonReport } from './reports';
+import { foodDaysOf, lightHearths, statusOf } from './economy';
+import { pushFeed } from './feed';
 import type { Ctx } from './ctx';
 import { tickPerson } from './exec';
 import { refreshJobs } from './jobs';
@@ -72,6 +77,9 @@ export interface Sim {
 }
 
 const FEED_IN_VIEW = 40;
+/** While the manager is away the village stops itself when this few are left, or when there is under this much food. */
+const CRISIS_PEOPLE = 3;
+const CRISIS_FOOD_DAYS = 0.5;
 const POOL = 8;
 
 /** Sites a new person already knows: everything fixed in the village, and what lies near their own home. */
@@ -197,6 +205,17 @@ export function createSim(opts: CreateSimOptions): Sim {
       rationing: 0,
       hearthDay: -1,
       dir: newDirector(rng.fork('director')),
+      priorities: defaultPriorities(),
+      rules: [],
+      nextRuleId: 1,
+      offers: [],
+      nextOfferId: 1,
+      reports: [],
+      nextReportId: 1,
+      dayBase: emptyBase(),
+      seasonBase: emptyBase(),
+      away: null,
+      crisis: null,
     };
   }
 
@@ -239,6 +258,8 @@ export function createSim(opts: CreateSimOptions): Sim {
 
   if (!opts.saved) populate(opts.population ?? 12);
   sync();
+  if (st.dayBase.day < 0) st.dayBase = baseOf(c);
+  if (st.seasonBase.day < 0) st.seasonBase = baseOf(c);
 
   // ---- ticking ----
   function newDay(day: number, prevSeason: number, season: number, year: number): void {
@@ -250,9 +271,25 @@ export function createSim(opts: CreateSimOptions): Sim {
       pending.push({ t: 'weather', kind: next });
     }
     sync();
+    // The report of the day that ended, and of the season if it ended too, before the new day changes anything.
+    dayReport(c);
+    if (season !== prevSeason) seasonReport(c, prevSeason, season === 0 ? year - 1 : year);
     dailyLife(c);
     directorDay(c);
+    expireOffers(c);
+    checkCrisis();
     for (const p of c.people) reviewAmbitions(c, p);
+  }
+
+  /** While the manager is away a village that would be lost parks itself instead of dying unseen. */
+  function checkCrisis(): void {
+    if (!st.away || st.crisis) return;
+    const n = c.people.length;
+    const why = n === 0 ? 'nobody is left' : n <= CRISIS_PEOPLE ? `only ${n} people are left` : foodDaysOf(c) < CRISIS_FOOD_DAYS ? 'the food has run out' : '';
+    if (!why) return;
+    st.crisis = why;
+    st.speed = 0;
+    pushFeed(st, pending, 'crisis', `The village stopped itself while you were away: ${why}. It waits for you.`);
   }
 
   function tick(dt: number): void {
@@ -265,6 +302,7 @@ export function createSim(opts: CreateSimOptions): Sim {
     lightHearths(c);
     if (st.jobsAt < 0 || st.totalMs - st.jobsAt >= GAME_HOUR_MS) {
       st.jobsAt = st.totalMs;
+      runRules(c);
       refreshJobs(c);
     }
     for (const p of c.people) {
@@ -283,6 +321,20 @@ export function createSim(opts: CreateSimOptions): Sim {
     },
 
     command(cmd: SimCommand): CommandResult {
+      if (cmd.t === 'away') {
+        if (cmd.on && !st.away) st.away = { since: c.day, base: baseOf(c) };
+        else if (!cmd.on && st.away) {
+          awayReport(c);
+          st.away = null;
+          st.crisis = null;
+        }
+        return { ok: true };
+      }
+      if (cmd.t === 'priority') return setPriority(c, cmd.group, cmd.level);
+      if (cmd.t === 'rule') return setRule(c, cmd.rule);
+      if (cmd.t === 'rule_del') return deleteRule(c, cmd.id);
+      if (cmd.t === 'answer') return answerOffer(c, cmd.offer, cmd.option);
+      if (cmd.t === 'read') return markRead(c, cmd.report), { ok: true };
       if (cmd.t === 'ration') {
         if (cmd.level !== 0 && cmd.level !== 1 && cmd.level !== 2) return { ok: false, code: 'bad_ration', text: 'Unknown rationing level.' };
         st.rationing = cmd.level;
@@ -335,6 +387,14 @@ export function createSim(opts: CreateSimOptions): Sim {
         orders: orderViews(c),
         wishes: wishes(c),
         status: statusOf(c),
+        policy: {
+          priorities: st.priorities.slice(),
+          rules: st.rules.map((r) => ({ id: r.id, enabled: r.enabled, cond: { ...r.cond }, act: { ...r.act } as RuleDef['act'] })),
+          offers: st.offers.map(({ n: _n, ...o }) => ({ ...o, options: o.options.map((x) => ({ ...x })) })),
+          away: st.away !== null,
+          crisis: st.crisis,
+        },
+        reports: st.reports.map((r) => ({ ...r, lines: r.lines.map((l) => ({ ...l })) })),
       };
     },
 

@@ -3,6 +3,7 @@ import { BAL, GAME_DAY_MS, GAME_HOUR_MS, Rng, type BuildingDef } from '@hearth/s
 import { defenceOf, directorDay, harvestKeeps, refugees, startPlague } from './director';
 import { blightReach, foodDaysOf, fuelDaysOf, lightHearths, rationOf, spoil, statusOf, woodGoal } from './economy';
 import { refreshJobs } from './jobs';
+import { expireOffers } from './offers';
 import { restoreState, SNAPSHOT_VERSION, type SimSnapshot } from './serialize';
 import { createSim } from './sim';
 import { kit, setStock, type Kit } from './testkit';
@@ -270,22 +271,39 @@ describe('the events director', () => {
     expect(k.st.stats.plague_recoveries).toBeGreaterThanOrEqual(3);
   });
 
-  it('takes refugees in when there is food for them and sends them on when there is not', () => {
-    const fed = kit(4, 12);
-    at(fed, 60, 9);
-    setStock(fed, { ration: 400 });
-    const n = fed.st.people.length;
-    refugees(fed.c);
-    expect(fed.st.people.length).toBeGreaterThanOrEqual(n + BAL.director.refugees.count[0]);
-    expect(fed.st.stats.refugees_taken).toBeGreaterThanOrEqual(2);
+  it('puts refugees to the manager, who takes them in or sends them on; unanswered, the village decides by its food', () => {
+    const k = kit(4, 12);
+    at(k, 60, 9);
+    setStock(k, { ration: 400 });
+    const n = k.st.people.length;
+    refugees(k.c);
+    expect(k.st.offers).toHaveLength(1);
+    const offer = k.st.offers[0];
+    expect(offer.kind).toBe('refugees');
+    expect(offer.fallback).toBe('accept');
+    expect(k.st.people.length).toBe(n);
+    expect(k.sim.command({ t: 'answer', offer: offer.id, option: 'accept' }).ok).toBe(true);
+    expect(k.st.people.length).toBeGreaterThanOrEqual(n + BAL.director.refugees.count[0]);
+    expect(k.st.stats.refugees_taken).toBeGreaterThanOrEqual(2);
+    expect(k.st.offers).toHaveLength(0);
+    expect(k.sim.command({ t: 'answer', offer: offer.id, option: 'accept' }).ok).toBe(false);
+
     const poor = kit(4, 12);
     at(poor, 60, 9);
     setStock(poor, { ration: 20 });
     const m = poor.st.people.length;
     refugees(poor.c);
+    expect(poor.st.offers[0].fallback).toBe('refuse');
+    expect(poor.sim.command({ t: 'answer', offer: poor.st.offers[0].id, option: 'nonsense' }).ok).toBe(false);
+    // nobody answers: after the wait the village sends them on
+    at(poor, 64, 0);
+    poor.st.offers[0].expires = 63;
+    directorDay(poor.c);
+    expireOffers(poor.c);
+    expect(poor.st.offers).toHaveLength(0);
     expect(poor.st.people.length).toBe(m);
     expect(poor.st.stats.refugees_turned_away).toBeGreaterThanOrEqual(2);
-    expect(poor.st.feed.at(-1)!.kind).toBe('refugees');
+    expect(poor.st.stats.offers_auto).toBe(1);
   });
 
   it('lets a travelling master teach for a while, then move on', () => {
@@ -368,7 +386,7 @@ describe('saves', () => {
     delete raw.hearthDay;
     delete raw.dir;
     const st = restoreState(snap, new Rng(1));
-    expect(SNAPSHOT_VERSION).toBe(4);
+    expect(SNAPSHOT_VERSION).toBe(5);
     expect(st.rationing).toBe(0);
     expect(st.dir.raid).toBeNull();
     expect(st.dir.nextRaid).toBeGreaterThanOrEqual(40 + BAL.director.raid.first);

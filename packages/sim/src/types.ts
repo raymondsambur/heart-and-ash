@@ -1,4 +1,4 @@
-import type { Ambition, BuildKind, BuildingDef, Dir, Good, Look, NeedId, NpcAct, PlaceKind, PlotDef, Point, SkillId, Speed, TraitId, WeatherKind } from '@hearth/shared';
+import type { Ambition, BuildKind, JobGroup, OfferOption, ReportLine, RuleDef, BuildingDef, Dir, Good, Look, NeedId, NpcAct, PlaceKind, PlotDef, Point, SkillId, Speed, TraitId, WeatherKind } from '@hearth/shared';
 
 // ---------------------------------------------------------------------------------------------------
 // Places
@@ -287,6 +287,13 @@ export type SimCommand =
   | { t: 'speed'; speed: Speed }
   /** How much of a portion each person is given: 0 normal, 1 tight, 2 strict (docs/notes/m3.md). */
   | { t: 'ration'; level: 0 | 1 | 2 }
+  | { t: 'priority'; group: JobGroup; level: number }
+  | { t: 'rule'; rule: RuleDef }
+  | { t: 'rule_del'; id: number }
+  | { t: 'answer'; offer: number; option: string }
+  | { t: 'read'; report: number }
+  /** The host says whether the manager is away (the village runs on its rules, the director is mild). */
+  | { t: 'away'; on: boolean }
   /** Order a building raised (or a field ploughed) with its top-left corner at (x, y). */
   | { t: 'build'; kind: BuildKind; x: number; y: number; rot?: boolean }
   | { t: 'demolish'; building?: number; plot?: number }
@@ -346,6 +353,61 @@ export interface SimState {
   hearthDay: number;
   /** The events director's memory (M3). */
   dir: DirectorState;
+  /** M4: priority level per group (in `JOB_GROUPS` order), the standing rules, decisions waiting, and reports. */
+  priorities: number[];
+  rules: Rule[];
+  nextRuleId: number;
+  offers: Offer[];
+  nextOfferId: number;
+  reports: Report[];
+  nextReportId: number;
+  /** What the day and the season started from, for the reports. */
+  dayBase: Base;
+  seasonBase: Base;
+  /** Set while the manager is away; the crisis text when the village stopped itself. */
+  away: { since: number; base: Base } | null;
+  crisis: string | null;
+}
+
+/** A standing rule with what it remembers: whether its condition held last time, and the day it last placed an order. */
+export interface Rule extends RuleDef {
+  active: boolean;
+  last: number;
+}
+
+/** A decision put to the manager. */
+export interface Offer {
+  id: number;
+  kind: 'refugees' | 'envoy' | 'trader';
+  title: string;
+  text: string;
+  day: number;
+  expires: number;
+  options: OfferOption[];
+  /** The option taken if nobody answers (or the manager is away). */
+  fallback: string;
+  /** What the offer is about (people, goods, coin). */
+  n: number;
+}
+
+export interface Report {
+  id: number;
+  kind: 'day' | 'season' | 'away';
+  day: number;
+  title: string;
+  lines: ReportLine[];
+  unread: boolean;
+}
+
+/** What a report compares against. */
+export interface Base {
+  day: number;
+  totalMs: number;
+  stats: Record<string, number>;
+  stock: Record<string, number>;
+  people: number;
+  houses: number;
+  feedId: number;
 }
 
 /** What the events director remembers between days. */

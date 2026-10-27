@@ -11,11 +11,12 @@ import type { BuildingDef, PlotDef } from './terrain';
 import type { CarryKind, Dir, Look, NpcAct, NpcRole, WeatherKind } from './types';
 import type { NeedId } from './data/needs';
 import type { BuildKind } from './data/blueprints';
+import type { JobGroup, PolicyView, ReportView, RuleDef } from './data/policy';
 import type { Speed } from './constants';
 
 export const WS_PATH = '/ws';
 export const LOGOUT_PATH = '/api/logout';
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 // ---------------------------------------------------------------------------
 // HTTP API
@@ -263,6 +264,10 @@ export interface VillageView {
   orders: OrderView[];
   wishes: WishView[];
   status: VillageStatus;
+  /** Priorities, rules, offers waiting for an answer, and whether the village is running without the manager (M4). */
+  policy: PolicyView;
+  /** The latest reports, newest last. */
+  reports: ReportView[];
 }
 
 // ---------------------------------------------------------------------------
@@ -284,6 +289,15 @@ export type C2S =
   | { t: 'cancel'; order: number }
   /** How much of a portion each person is given: 0 normal, 1 tight, 2 strict. */
   | { t: 'ration'; level: 0 | 1 | 2 }
+  /** Set how much of the village's labour goes to a kind of work (0 off to 4 urgent). */
+  | { t: 'priority'; group: JobGroup; level: number }
+  /** Add a standing rule (`id` 0) or change one. */
+  | { t: 'rule'; rule: RuleDef }
+  | { t: 'rule_del'; id: number }
+  /** Answer a decision the village asked for. */
+  | { t: 'answer'; offer: number; option: string }
+  /** Mark a report as read. */
+  | { t: 'read'; report: number }
   | { t: 'ping'; n: number };
 
 export type NoteLevel = 'info' | 'good' | 'warn' | 'bad';
@@ -309,6 +323,9 @@ export type S2C =
       stock?: StockSummary;
       /** Food, fuel, rationing and alerts, when they changed. */
       status?: VillageStatus;
+      /** Priorities, rules and offers, and the reports, when they changed. */
+      policy?: PolicyView;
+      reports?: ReportView[];
       /** The villager list, when it changed (a few times a minute at most). */
       roster?: PersonBrief[];
       /** The order list and the wishes, when they changed. */

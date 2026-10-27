@@ -95,6 +95,7 @@ export const HANDLERS: Record<string, Handler> = {
     const r = rationOf(d.c);
     const took = takeCarry(d.p, MEAL_PORTION * r.portion + 0.01);
     if (took <= 0) return;
+    stat(d.c, 'food_eaten', took);
     d.p.needs.food = clamp(d.p.needs.food + (good === 'meal' ? COOKED_MEAL_POINTS : RAW_MEAL_POINTS) * r.points);
     if (good === 'meal') addMood(d.c, d.p, 'a hot meal', 3, 5);
     if (r.mood < 0) addMood(d.c, d.p, 'on short rations', r.mood, 8);

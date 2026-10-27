@@ -10,6 +10,7 @@ import { blightReach, foodDaysOf } from './economy';
 import { pushFeed } from './feed';
 import { arrive, die, leave } from './life';
 import { ageOf } from './people';
+import { refugeeOffer } from './offers';
 import { gainXp } from './skills';
 import type { DirectorState, Person } from './types';
 import { addMood, clamp, feedAbout, mem, stat } from './util';
@@ -118,14 +119,8 @@ export function refugees(c: Ctx): void {
   const R = BAL.director.refugees;
   const n = c.rng.int(R.count[0], R.count[1]);
   c.st.dir.last.refugees = c.day;
-  if (foodDaysOf(c) < 12) {
-    stat(c, 'refugees_turned_away', n);
-    pushFeed(c.st, c.pending, 'refugees', `${n} refugees came to the edge of the village. There was too little food to take them in, and they went on.`);
-    return;
-  }
-  stat(c, 'refugees_taken', n);
-  pushFeed(c.st, c.pending, 'refugees', `${n} refugees came out of the hills with what they could carry, and were taken in.`);
-  arrive(c, n, [10, 55], 'refugee');
+  // The manager decides (or, unanswered or away, the village does what a careful keeper would).
+  refugeeOffer(c, n);
 }
 
 function masterDay(c: Ctx): void {
@@ -258,6 +253,12 @@ function resolveRaid(c: Ctx, size: number): void {
 function raidDay(c: Ctx): void {
   const R = BAL.director.raid;
   const d = c.st.dir;
+  // The director is mild while the manager is away: raiders wait until they are back.
+  if (c.st.away) {
+    if (d.raid) d.raid.day = Math.max(d.raid.day, c.day + 1);
+    else if (c.day >= d.nextRaid) d.nextRaid = c.day + 1;
+    return;
+  }
   if (d.raid) {
     if (c.day >= d.raid.day) {
       const size = d.raid.size;
@@ -302,7 +303,7 @@ export function directorDay(c: Ctx): void {
   raidDay(c);
 
   const P = BAL.director.plague;
-  if (c.people.length >= 8 && day >= P.from && gapOk(c, 'plague', P.gap) && c.rng.chance(P.chance)) startPlague(c);
+  if (!c.st.away && c.people.length >= 8 && day >= P.from && gapOk(c, 'plague', P.gap) && c.rng.chance(P.chance)) startPlague(c);
   const R = BAL.director.refugees;
   if (day >= R.from && gapOk(c, 'refugees', R.gap) && c.rng.chance(R.chance)) refugees(c);
 }

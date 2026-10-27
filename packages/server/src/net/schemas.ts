@@ -5,7 +5,7 @@
  * The compile-time check at the bottom guarantees the schema output is assignable to `C2S`,
  * so adding a message to protocol.ts without a schema (or with a wrong one) fails type checking.
  */
-import { BUILD_KINDS, type C2S } from '@hearth/shared';
+import { BUILD_KINDS, JOB_GROUPS, RULE_METRICS, type C2S } from '@hearth/shared';
 import { z } from 'zod';
 
 /** Largest accepted text message in bytes (checked by the gateway before parsing). */
@@ -16,6 +16,17 @@ const int = (min: number, max: number) => z.number().int().min(min).max(max);
 /** The time controls: 0 pauses. */
 const speed = z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(4)]);
 
+const ruleSchema = z.object({
+  id: int(0, 2 ** 31 - 1),
+  enabled: z.boolean(),
+  cond: z.object({ metric: z.enum(RULE_METRICS), op: z.enum(['<', '>', '=']), value: z.number().finite().min(-100000).max(100000) }),
+  act: z.discriminatedUnion('t', [
+    z.object({ t: z.literal('ration'), level: z.union([z.literal(0), z.literal(1), z.literal(2)]) }),
+    z.object({ t: z.literal('priority'), group: z.enum(JOB_GROUPS), level: int(0, 4) }),
+    z.object({ t: z.literal('build'), kind: z.enum(BUILD_KINDS) }),
+  ]),
+});
+
 export const c2sSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('hello'), v: int(0, 1000) }),
   z.object({ t: z.literal('speed'), speed }),
@@ -23,6 +34,11 @@ export const c2sSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('build'), kind: z.enum(BUILD_KINDS), x: int(0, 255), y: int(0, 255), rot: z.boolean().optional() }),
   z.object({ t: z.literal('demolish'), building: int(0, 2 ** 31 - 1).optional(), plot: int(0, 2 ** 31 - 1).optional() }),
   z.object({ t: z.literal('cancel'), order: int(0, 2 ** 31 - 1) }),
+  z.object({ t: z.literal('priority'), group: z.enum(JOB_GROUPS), level: int(0, 4) }),
+  z.object({ t: z.literal('rule'), rule: ruleSchema }),
+  z.object({ t: z.literal('rule_del'), id: int(0, 2 ** 31 - 1) }),
+  z.object({ t: z.literal('answer'), offer: int(0, 2 ** 31 - 1), option: z.string().min(1).max(32) }),
+  z.object({ t: z.literal('read'), report: int(0, 2 ** 31 - 1) }),
   z.object({ t: z.literal('ration'), level: z.union([z.literal(0), z.literal(1), z.literal(2)]) }),
   z.object({ t: z.literal('ping'), n: int(0, 2 ** 31 - 1) }),
 ]);
