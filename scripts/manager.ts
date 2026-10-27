@@ -3,34 +3,20 @@
  * sensible player would (a house when people have no roof, a field when food runs short, a well, a storehouse, a shrine for
  * those who wish for one) and, later on, takes one old building down. It only uses `sim.command`, like the client does.
  */
-import { BLUEPRINTS, BUILD_RADIUS, GAME_DAY_MS, canPlace, footprintOf, type BuildKind } from '@hearth/shared';
+import { BLUEPRINTS, GAME_DAY_MS, placementsFor, type BuildKind } from '@hearth/shared';
 import type { Sim } from '@hearth/sim';
 
 interface Spot {
   x: number;
   y: number;
+  rot: boolean;
 }
 
-/** Nearest valid spot to the village green, keeping a tile of room around it (so doors and paths stay clear). */
-export function findSpot(sim: Sim, kind: BuildKind, rot = false): Spot | null {
+/** The best place for a kind of building: the same choice a standing rule makes (shared/data/placement.ts). */
+export function findSpot(sim: Sim, kind: BuildKind): Spot | null {
   const v = sim.view();
-  const c = sim.world.start.center;
-  const { w, d } = footprintOf(kind, rot);
-  const pw = { world: sim.world, buildings: v.buildings, plots: v.plots };
-  const rects = [...v.buildings, ...v.plots];
-  const roomy = (x: number, y: number): boolean => !rects.some((b) => x - 1 < b.x + b.w && x + w + 1 > b.x && y - 1 < b.y + b.d && y + d + 1 > b.y);
-  let best: Spot | null = null;
-  let bd = Infinity;
-  for (let y = c.y - BUILD_RADIUS; y <= c.y + BUILD_RADIUS; y++) {
-    for (let x = c.x - BUILD_RADIUS; x <= c.x + BUILD_RADIUS; x++) {
-      const dd = Math.abs(x - c.x) + Math.abs(y - c.y);
-      if (dd >= bd || dd < 4) continue;
-      if (!canPlace(pw, kind, x, y, rot).ok || !roomy(x, y)) continue;
-      best = { x, y };
-      bd = dd;
-    }
-  }
-  return best;
+  const best = placementsFor({ world: sim.world, buildings: v.buildings, plots: v.plots }, kind, {}, 1)[0];
+  return best ? { x: best.x, y: best.y, rot: best.rot } : null;
 }
 
 export interface Manager {
@@ -46,7 +32,7 @@ export function createManager(): Manager {
   const order = (sim: Sim, kind: BuildKind): boolean => {
     const spot = findSpot(sim, kind);
     if (!spot) return false;
-    const r = sim.command({ t: 'build', kind, x: spot.x, y: spot.y });
+    const r = sim.command({ t: 'build', kind, x: spot.x, y: spot.y, ...(spot.rot ? { rot: true } : {}) });
     if (r.ok) placed[kind] = (placed[kind] ?? 0) + 1;
     return r.ok;
   };

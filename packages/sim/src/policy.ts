@@ -5,7 +5,6 @@
  */
 import {
   BLUEPRINTS,
-  BUILD_RADIUS,
   BUILD_RULE_COOLDOWN,
   MAX_RULES,
   DEFAULT_PRIORITY,
@@ -15,9 +14,8 @@ import {
   PRIORITY_LABEL,
   PRIORITY_MULT,
   RULE_METRICS,
-  canPlace,
-  footprintOf,
   groupOfJob,
+  placementsFor,
   type BuildKind,
   type JobGroup,
   type RuleAct,
@@ -116,26 +114,16 @@ export function describeRule(r: RuleDef): string {
   return `if ${METRIC_LABEL[r.cond.metric]} ${r.cond.op} ${r.cond.value}, ${describeAct(r.act)}`;
 }
 
-/** Nearest valid spot to the village green with a tile of room around it (so doors and paths stay clear), or null. */
-export function autoSpot(c: Ctx, kind: BuildKind): { x: number; y: number } | null {
-  const st = c.st;
-  const centre = c.world.start.center;
-  const { w, d } = footprintOf(kind, false);
-  const pw = { world: c.world, buildings: st.buildings, plots: st.plots };
-  const rects = [...st.buildings, ...st.plots];
-  const roomy = (x: number, y: number): boolean => !rects.some((b) => x - 1 < b.x + b.w && x + w + 1 > b.x && y - 1 < b.y + b.d && y + d + 1 > b.y);
-  let best: { x: number; y: number } | null = null;
-  let bd = Infinity;
-  for (let y = centre.y - BUILD_RADIUS; y <= centre.y + BUILD_RADIUS; y++) {
-    for (let x = centre.x - BUILD_RADIUS; x <= centre.x + BUILD_RADIUS; x++) {
-      const dd = Math.abs(x - centre.x) + Math.abs(y - centre.y);
-      if (dd >= bd || dd < 4) continue;
-      if (!canPlace(pw, kind, x, y, false).ok || !roomy(x, y)) continue;
-      best = { x, y };
-      bd = dd;
-    }
-  }
-  return best;
+/** Where raiders and strangers come from: the far end of the main street. */
+function approachOf(c: Ctx): { x: number; y: number } | null {
+  const e = c.sites.ofKind('edge')[0];
+  return e ? { x: e.x, y: e.y } : null;
+}
+
+/** The best place for a kind of building (see `shared/data/placement.ts`), or null when there is no room. */
+export function autoSpot(c: Ctx, kind: BuildKind): { x: number; y: number; rot: boolean } | null {
+  const best = placementsFor({ world: c.world, buildings: c.st.buildings, plots: c.st.plots }, kind, { approach: approachOf(c) }, 1)[0];
+  return best ? { x: best.x, y: best.y, rot: best.rot } : null;
 }
 
 /** Apply a rule's action. Returns whether something changed. */
@@ -155,12 +143,14 @@ function apply(c: Ctx, r: Rule): boolean {
   // build: one at a time, and not more often than every few days
   if (c.day - r.last < BUILD_RULE_COOLDOWN) return false;
   if (c.st.orders.some((o) => o.kind === act.kind && o.mode === 'build')) return false;
-  const spot = autoSpot(c, act.kind);
-  if (!spot) return false;
-  const res = placeOrder(c, act.kind, spot.x, spot.y, false, null);
-  if (!res.ok) return false;
-  r.last = c.day;
-  return true;
+  // The best places first; one the builders could not reach from the green is dropped and the next tried.
+  const spots = placementsFor({ world: c.world, buildings: c.st.buildings, plots: c.st.plots }, act.kind, { approach: approachOf(c) }, 6);
+  for (const spot of spots) {
+    if (!placeOrder(c, act.kind, spot.x, spot.y, spot.rot, null).ok) continue;
+    r.last = c.day;
+    return true;
+  }
+  return false;
 }
 
 /** Look at every rule; called once a game hour. A rule speaks in the feed when it starts to hold or when it changes something. */
