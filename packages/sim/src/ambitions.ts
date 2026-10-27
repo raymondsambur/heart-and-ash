@@ -35,7 +35,6 @@ function weightOf(c: Ctx, p: Person, kind: AmbitionKind): number {
       if (p.partner !== null) return 0;
       break;
     case 'see_outside':
-    case 'find_kin':
       // One trip is enough for anyone.
       if (p.counters.returned !== undefined) return 0;
       break;
@@ -55,7 +54,9 @@ function weightOf(c: Ctx, p: Person, kind: AmbitionKind): number {
       if (!SKILL_IDS.some((s) => p.skills[s].lv >= 7) || age < 24) return 0;
       break;
     case 'find_kin':
-      if (p.parents.length > 0 && p.counters.newcomer === undefined) return 0;
+      // One trip is enough for anyone, and nobody looks for kin who live down the street (newcomers excepted).
+      if (p.counters.returned !== undefined) return 0;
+      if (p.parents.some((id) => c.person(id) !== undefined) && p.counters.newcomer === undefined) return 0;
       break;
     case 'escape_debt':
       return p.debt > 0 ? 3 : 0;

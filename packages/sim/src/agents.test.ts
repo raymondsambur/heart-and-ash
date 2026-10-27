@@ -453,3 +453,61 @@ describe('leaving and the road', () => {
     expect(p.away?.returns).toBe(false);
   });
 });
+
+describe('find_kin and see_outside are drawn by who has reason to', () => {
+  /** How many of `n` fresh draws for a person made by `make` came up with `kind`. */
+  function drawn(kind: string, make: (k: ReturnType<typeof kit>) => ReturnType<typeof addPerson>, n = 600): number {
+    const k = kit();
+    let hits = 0;
+    for (let i = 0; i < n; i++) {
+      const p = make(k);
+      p.ambitions = [];
+      drawAmbitions(k.c, p);
+      if (p.ambitions.some((a) => a.kind === kind)) hits++;
+    }
+    return hits;
+  }
+  const withParents = (k: ReturnType<typeof kit>) => {
+    const mother = addPerson(k, { age: 55 });
+    const child = addPerson(k, { age: 28 });
+    child.parents = [mother.id];
+    return child;
+  };
+
+  it('never offer find_kin to someone whose parents live in the village', () => {
+    expect(drawn('find_kin', withParents)).toBe(0);
+  });
+
+  it('offer find_kin to a newcomer, an orphan and someone with no known parents', () => {
+    expect(drawn('find_kin', (k) => addPerson(k, { age: 28 }))).toBeGreaterThan(0);
+    expect(
+      drawn('find_kin', (k) => {
+        const p = withParents(k);
+        p.counters.newcomer = k.c.day;
+        return p;
+      }),
+    ).toBeGreaterThan(0);
+    expect(
+      drawn('find_kin', (k) => {
+        const p = addPerson(k, { age: 28 });
+        p.parents = [987654]; // no one by that id any more
+        return p;
+      }),
+    ).toBeGreaterThan(0);
+  });
+
+  it('offer neither to someone who has already made the trip', () => {
+    const back = (k: ReturnType<typeof kit>) => {
+      const p = addPerson(k, { age: 28 });
+      p.counters.returned = k.c.day - 5;
+      return p;
+    };
+    expect(drawn('find_kin', back)).toBe(0);
+    expect(drawn('see_outside', back)).toBe(0);
+  });
+
+  it('keep offering see_outside whatever the family, as before', () => {
+    expect(drawn('see_outside', withParents)).toBeGreaterThan(0);
+    expect(drawn('see_outside', (k) => addPerson(k, { age: 28 }))).toBeGreaterThan(0);
+  });
+});
