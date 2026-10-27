@@ -1057,6 +1057,8 @@
   color: var(--text-dim);
 }
 .hint {
+  /* The layer the hint sits in lets clicks through to the map, so the card takes its own. */
+  pointer-events: auto;
   position: absolute;
   left: 50%;
   bottom: 5.5rem;

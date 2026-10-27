@@ -41,11 +41,16 @@ export function mountHints(layers: HTMLElement, ui: UiContext): { destroy(): voi
     if (p.rules.length > 0 || p.priorities.some((x) => x !== 2) || st.get('status').rationing !== 0) mark('manage');
   };
 
+  /** What the card shows now: the card is rebuilt only when this changes, or a click on it could land on a button that has just been replaced. */
+  let shown = '';
   const render = (): void => {
     observe();
     const next = STEPS.find((s) => !prefs.done.includes(s));
     // The hints wait until the village is on screen and a decision card is not in the way.
-    if (prefs.off || !next || st.get('time') === null || st.get('policy').offers.length > 0) {
+    const key = prefs.off || !next || st.get('time') === null || st.get('policy').offers.length > 0 ? 'hidden' : next;
+    if (key === shown) return;
+    shown = key;
+    if (key === 'hidden' || !next) {
       card.hidden = true;
       return;
     }
