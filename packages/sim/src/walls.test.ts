@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { BAL, CARETAKER_RULES, GAME_DAY_MS, T, WALL_ARTS, builtSlots, nearestSlot, planRing, reservedSlots, ringProgress, ringSlots, wallCandidates, wallWhy, type BuildingDef, type WallRing } from '@hearth/shared';
+import { BAL, CARETAKER_RULES, GAME_DAY_MS, T, WALL_ARTS, builtSlots, canPlace, nearestSlot, planRing, reservedSlots, ringFailure, ringProgress, ringRects, ringSlots, wallCandidates, wallWhy, type BuildingDef, type WallRing } from '@hearth/shared';
 import { defenceOf } from './director';
-import { isClosed, wallState } from './walls';
+import { isClosed, keepsOutsideOpen, wallState } from './walls';
+import { spotNear } from './move';
 import { createSim } from './sim';
-import { kit, type Kit } from './testkit';
+import { refreshJobs } from './jobs';
+import { kit, setStock, type Kit } from './testkit';
+import type { Order } from './types';
 
 const pw = (k: Kit) => ({ world: k.sim.world, buildings: k.st.buildings, plots: k.st.plots });
 const approach = (k: Kit) => {
@@ -240,5 +243,149 @@ describe('a village that builds its own wall', () => {
     const gate = v.buildings.find((b) => b.kind === 'gateway')!;
     expect(v.population).toBeGreaterThan(3);
     expect(gate).toBeDefined();
+  });
+});
+
+/** A stream running the length of the map just outside the village (two tiles wide unless asked), on the given ground. */
+function stream(k: Kit, ground: number, width = 2): { x: number } {
+  const w = k.sim.world;
+  let bx1 = -Infinity;
+  for (const b of [...k.st.buildings, ...k.st.plots]) bx1 = Math.max(bx1, b.x + b.w - 1);
+  const x = bx1 + 2;
+  for (let y = 0; y < w.h; y++) for (let dx = 0; dx < width; dx++) w.terrain[y * w.w + x + dx] = ground;
+  return { x };
+}
+
+/** Does a wall piece's footprint stand in shallow water? */
+const wetSlot = (k: Kit, s: { x: number; y: number; rot: boolean }): boolean => {
+  const w = k.sim.world;
+  for (let i = 0; i < 4; i++) if (w.terrain[(s.rot ? s.y + i : s.y) * w.w + (s.rot ? s.x : s.x + i)] === T.Water) return true;
+  return false;
+};
+
+describe('a wall and a stream', () => {
+  it('may stand in shallow water, but a gate may not, and neither may deep water or rock be built on', () => {
+    const k = kit(3, 12);
+    const w = k.sim.world;
+    const g = w.start.center;
+    const x = g.x + 20;
+    const y = g.y - 25;
+    const at = (t: number) => {
+      for (let i = 0; i < 4; i++) w.terrain[y * w.w + x + i] = t;
+    };
+    at(T.Water);
+    expect(canPlace(pw(k), 'wall', x, y, false).ok).toBe(true);
+    expect(canPlace(pw(k), 'gate', x, y, false).ok).toBe(false);
+    expect(canPlace(pw(k), 'house', x, y, false).ok).toBe(false);
+    at(T.DeepWater);
+    const deep = canPlace(pw(k), 'wall', x, y, false);
+    expect(deep.ok).toBe(false);
+    if (!deep.ok) expect(deep.reason).toContain('deep water');
+  });
+
+  it('is run across: a loop is planned over a stream, with pieces standing in the water', () => {
+    const k = kit(3, 12);
+    expect(planRing(pw(k), approach(k))).not.toBeNull();
+    // the stream crosses every route, so there was no loop before; now there is
+    stream(k, T.Water);
+    for (const r of ringRects(pw(k))) expect(ringSlots({ ...r, gate: 0 }).some((s) => wetSlot(k, s)), 'a route misses the stream').toBe(true);
+    const ring = planRing(pw(k), approach(k))!;
+    expect(ring).not.toBeNull();
+    const w = k.sim.world;
+    expect(ringSlots(ring).filter((s) => wetSlot(k, s)).length).toBeGreaterThan(0);
+    // the gate stands on dry land
+    const gate = ringSlots(ring)[ring.gate];
+    for (let i = 0; i < 4; i++) expect(w.terrain[(gate.rot ? gate.y + i : gate.y) * w.w + (gate.rot ? gate.x : gate.x + i)]).not.toBe(T.Water);
+  });
+
+  it('says what is in the way when deep water or rock cuts every route, and refuses the orders with that reason', () => {
+    const k = kit(3, 12);
+    stream(k, T.DeepWater);
+    expect(planRing(pw(k), approach(k))).toBeNull();
+    expect(ringFailure(pw(k))).toMatch(/blocked in \d+ places? by deep water, rock or paving/);
+    const res = k.sim.command({ t: 'build', kind: 'wall', x: 60, y: 60 });
+    expect(res).toMatchObject({ ok: false, code: 'no_ring' });
+    expect(k.sim.view().policy.wallBlock).toMatch(/deep water/);
+  });
+
+  it('counts a stream as part of the wall: the village is closed when the pieces and the water shut it in', () => {
+    const k = kit(3, 12);
+    stream(k, T.Water, 9);
+    const ring = planRing(pw(k), approach(k))!;
+    const w = k.sim.world;
+    const covered = (s: { x: number; y: number; rot: boolean }): boolean => {
+      for (let i = 0; i < 4; i++) if (w.terrain[(s.rot ? s.y + i : s.y) * w.w + (s.rot ? s.x : s.x + i)] !== T.Water) return false;
+      return true;
+    };
+    const slots = ringSlots(ring);
+    k.st.ring = ring;
+    // raise every piece but the ones the stream covers entirely (and the gate)
+    slots.forEach((s, i) => {
+      if (i === ring.gate) return raise(k, ring, i, true);
+      if (!covered(s)) raise(k, ring, i);
+    });
+    expect(slots.some(covered)).toBe(true);
+    expect(wallState(k.c)!.built).toBeLessThan(slots.length);
+    expect(isClosed(k.c)).toBe(true);
+    expect(wallState(k.c)!.closed).toBe(true);
+    // and then the wall rules have nothing more to ask for
+    expect(k.sim.command({ t: 'build', kind: 'wall', x: 60, y: 60 })).toMatchObject({ ok: false, code: 'wall_closed' });
+  });
+});
+
+describe('building materials', () => {
+  it('are hauled for any shortfall, however small, so a stage is never left waiting for a tenth of a stone', () => {
+    const k = kit(3, 12);
+    setStock(k, { stone: 100, planks: 100 });
+    const order: Order = { id: 900, mode: 'build', kind: 'wall', x: 5, y: 5, w: 4, d: 1, door: { x: 5, y: 6 }, done: 2, work: 0, delivered: { stone: 15.1, planks: 10 }, placedDay: 0, by: null, labourBy: {} };
+    k.st.orders.push(order);
+    refreshJobs(k.c);
+    expect(k.st.jobs.some((j) => j.key === 'haul:900:stone')).toBe(true);
+    order.delivered.stone = 16;
+    refreshJobs(k.c);
+    expect(k.st.jobs.some((j) => j.key === 'haul:900:stone')).toBe(false);
+  });
+});
+
+describe('a wall that would shut the village off', () => {
+  it('is the same loop as before wherever the outside stays reachable', () => {
+    const k = kit(3, 12);
+    const plain = planRing(pw(k), approach(k));
+    const chosen = planRing(pw(k), approach(k), { accept: (r) => keepsOutsideOpen(k.c, r) });
+    expect(plain).not.toBeNull();
+    expect(chosen).toEqual(plain);
+    expect(keepsOutsideOpen(k.c, plain!)).toBe(true);
+  });
+
+  it('is turned down when a stream runs the length of the map and the gate would open onto the far bank only', () => {
+    const k = kit(3, 12);
+    stream(k, T.Water, 2);
+    const plain = planRing(pw(k), approach(k));
+    expect(plain).not.toBeNull();
+    // the gate stands on the east side, where the road goes, across the stream from the forests and the meadows
+    const refused = planRing(pw(k), approach(k), { accept: (r) => keepsOutsideOpen(k.c, r) });
+    expect(refused).toBeNull();
+    const res = k.sim.command({ t: 'build', kind: 'wall', x: 60, y: 60 });
+    expect(res).toMatchObject({ ok: false, code: 'no_ring' });
+    expect(k.sim.view().policy.wallBlock).toMatch(/cut it off/);
+  });
+});
+
+describe('places on the map', () => {
+  it('are not offered once a wall stands on them', () => {
+    const k = kit(3, 12);
+    const s = k.c.sites.ofKind('stream')[0];
+    expect(k.c.sites.get(s.id)).toBeDefined();
+    k.st.buildings.push({ id: k.st.nextBuildingId++, kind: 'wall', x: s.x, y: s.y, w: 4, d: 1, door: { x: s.x, y: s.y + 1 } } as BuildingDef);
+    k.c.sites.sync(k.st.buildings, k.st.plots, k.st.orders);
+    expect(k.c.sites.get(s.id)).toBeUndefined();
+  });
+
+  it('give each person the same spot every time they plan to go there, and others a different one', () => {
+    const k = kit(3, 12);
+    const a = Array.from({ length: 5 }, () => spotNear(k.c, 80, 80, 1, 7));
+    expect(new Set(a.map((q) => `${q.x},${q.y}`)).size).toBe(1);
+    const spots = new Set(Array.from({ length: 12 }, (_, i) => spotNear(k.c, 80, 80, 1, 100 + i)).map((q) => `${q.x},${q.y}`));
+    expect(spots.size).toBeGreaterThan(2);
   });
 });

@@ -128,14 +128,14 @@ export function nearestSlot(cands: readonly WallSlot[], x: number, y: number): W
 }
 
 /**
- * Plan the loop: a rectangle around everything the village has (with a margin), a whole number of pieces on each side, every
- * slot on ground a wall may stand on, inside what may be built. The gate goes on the side the road comes in from. Null when
- * there is no such rectangle.
+ * The rectangles a loop may take, in the order they are tried: a margin of 3, 4, 5, 6 and 2 tiles round everything the village has,
+ * each moved up to four tiles any way, whole pieces on every side, inside what may be built. They are only rectangles: whether the
+ * ground suits is decided by the caller.
  */
-export function planRing(pw: PlacementWorld, approach: { x: number; y: number } | null): WallRing | null {
+export function ringRects(pw: PlacementWorld): Omit<WallRing, 'gate'>[] {
   const green = pw.world.start.center;
   const rects = [...pw.buildings.filter((b) => !(b.kind !== undefined && WALL_ARTS.has(b.kind))), ...pw.plots];
-  if (rects.length === 0) return null;
+  if (rects.length === 0) return [];
   let bx0 = Infinity;
   let by0 = Infinity;
   let bx1 = -Infinity;
@@ -146,11 +146,8 @@ export function planRing(pw: PlacementWorld, approach: { x: number; y: number } 
     bx1 = Math.max(bx1, r.x + r.w - 1);
     by1 = Math.max(by1, r.y + r.d - 1);
   }
-  const to = approach ?? { x: green.x + 40, y: green.y };
-  const east = Math.abs(to.x - green.x) >= Math.abs(to.y - green.y);
-  const sideE = east ? to.x >= green.x : null;
-  const sideS = east ? null : to.y >= green.y;
   const order = (n: number): number[] => [0, ...Array.from({ length: n }, (_, k) => [k + 1, -(k + 1)]).flat()];
+  const out: Omit<WallRing, 'gate'>[] = [];
   for (const margin of [3, 4, 5, 6, 2]) {
     const wNeed = bx1 - bx0 + 1 + 2 * margin;
     const hNeed = by1 - by0 + 1 + 2 * margin;
@@ -164,33 +161,113 @@ export function planRing(pw: PlacementWorld, approach: { x: number; y: number } 
     const by = Math.round(cy - (height - 1) / 2);
     for (const dy of order(4)) {
       for (const dx of order(4)) {
-        const ring0 = { x0: bx + dx, y0: by + dy, x1: bx + dx + width - 1, y1: by + dy + height - 1 };
+        const r = { x0: bx + dx, y0: by + dy, x1: bx + dx + width - 1, y1: by + dy + height - 1 };
         // inside what may be built, and round everything the village has
-        if (Math.max(Math.abs(ring0.x0 - green.x), Math.abs(ring0.x1 - green.x), Math.abs(ring0.y0 - green.y), Math.abs(ring0.y1 - green.y)) > BUILD_RADIUS - 1) continue;
-        if (ring0.x0 > bx0 - 2 || ring0.y0 > by0 - 2 || ring0.x1 < bx1 + 2 || ring0.y1 < by1 + 2) continue;
-        // the gate's slot: on the side the road comes from, the one nearest the green's row or column
-        const probe: WallRing = { ...ring0, gate: 0 };
-        const slots = ringSlots(probe);
-        let gate = -1;
-        let gd = Infinity;
-        slots.forEach((s, i) => {
-          const onSide = sideE !== null ? (sideE ? s.rot && s.x === ring0.x1 : s.rot && s.x === ring0.x0) : sideS ? !s.rot && s.y === ring0.y1 : !s.rot && s.y === ring0.y0;
-          if (!onSide) return;
-          const { w, d } = dims(s);
-          const dd = Math.hypot(s.x + w / 2 - green.x, s.y + d / 2 - green.y);
-          if (dd < gd) {
-            gd = dd;
-            gate = i;
-          }
-        });
-        if (gate < 0) continue;
-        const ring: WallRing = { ...ring0, gate };
-        const ok = slots.every((s, i) => canPlace(pw, i === gate ? 'gate' : 'wall', s.x, s.y, s.rot).ok);
-        if (ok) return ring;
+        if (Math.max(Math.abs(r.x0 - green.x), Math.abs(r.x1 - green.x), Math.abs(r.y0 - green.y), Math.abs(r.y1 - green.y)) > BUILD_RADIUS - 1) continue;
+        if (r.x0 > bx0 - 2 || r.y0 > by0 - 2 || r.x1 < bx1 + 2 || r.y1 < by1 + 2) continue;
+        out.push(r);
       }
     }
   }
+  return out;
+}
+
+/** Which side the road comes in on: the gate goes there. */
+function gateSide(pw: PlacementWorld, approach: { x: number; y: number } | null): { sideE: boolean | null; sideS: boolean | null } {
+  const green = pw.world.start.center;
+  const to = approach ?? { x: green.x + 40, y: green.y };
+  const east = Math.abs(to.x - green.x) >= Math.abs(to.y - green.y);
+  return { sideE: east ? to.x >= green.x : null, sideS: east ? null : to.y >= green.y };
+}
+
+/** What the caller may decide while a loop is planned. */
+export interface RingOptions {
+  /** Turn a loop down (the first one it takes is planned). */
+  accept?: (ring: WallRing) => boolean;
+  /** Choose the gate's slot among those a gate may take on this rectangle (-1 turns the rectangle down). Asked for at most `PICK_TRIES` rectangles. */
+  pickGate?: (ring0: Omit<WallRing, 'gate'>, candidates: number[]) => number;
+}
+
+/** How many rectangles that fit the ground a gate is looked for on: moving the rectangle a little rarely changes what the gate can reach. */
+const PICK_TRIES = 24;
+
+/**
+ * Plan the loop: the first rectangle (`ringRects`) whose every slot is on ground a wall may stand on. By default the gate goes on the side
+ * the road comes in from, on the slot nearest the green; `pickGate` may choose it instead. Null when there is no such rectangle.
+ */
+export function planRing(pw: PlacementWorld, approach: { x: number; y: number } | null, opts: RingOptions = {}): WallRing | null {
+  const green = pw.world.start.center;
+  const { sideE, sideS } = gateSide(pw, approach);
+  let picked = 0;
+  for (const ring0 of ringRects(pw)) {
+    const slots = ringSlots({ ...ring0, gate: 0 });
+    let gate = -1;
+    if (opts.pickGate) {
+      if (picked >= PICK_TRIES) break;
+      // every slot but one must take a wall, and that one a gate: the candidates are the slots a gate may take
+      const wallOk = slots.map((s) => canPlace(pw, 'wall', s.x, s.y, s.rot).ok);
+      const bad = wallOk.map((ok, i) => (ok ? -1 : i)).filter((i) => i >= 0);
+      if (bad.length > 1) continue;
+      const cands = slots.map((_, i) => i).filter((i) => (bad.length === 0 || bad[0] === i) && canPlace(pw, 'gate', slots[i].x, slots[i].y, slots[i].rot).ok);
+      if (cands.length === 0) continue;
+      picked++;
+      gate = opts.pickGate(ring0, cands);
+      if (gate < 0) continue;
+    } else {
+      let gd = Infinity;
+      slots.forEach((s, i) => {
+        const onSide = sideE !== null ? (sideE ? s.rot && s.x === ring0.x1 : s.rot && s.x === ring0.x0) : sideS ? !s.rot && s.y === ring0.y1 : !s.rot && s.y === ring0.y0;
+        if (!onSide) return;
+        const { w, d } = dims(s);
+        const dd = Math.hypot(s.x + w / 2 - green.x, s.y + d / 2 - green.y);
+        if (dd < gd) {
+          gd = dd;
+          gate = i;
+        }
+      });
+      if (gate < 0) continue;
+      if (!slots.every((s, i) => canPlace(pw, i === gate ? 'gate' : 'wall', s.x, s.y, s.rot).ok)) continue;
+    }
+    const ring = { ...ring0, gate };
+    if (!opts.accept || opts.accept(ring)) return ring;
+  }
   return null;
+}
+
+/** What a refused building says, turned into what is in the way. */
+function blocker(reason: string): string {
+  if (reason.includes('deep water')) return 'deep water, rock or paving';
+  if (reason.includes('Blight')) return 'the Blight';
+  if (reason.includes('building or field')) return 'other buildings or fields';
+  if (reason.includes('doorway')) return 'a doorway';
+  if (reason.includes('edge')) return 'the edge of the map';
+  return 'rocks, trees or buildings';
+}
+
+/** Why there is no loop to plan, in words: nothing near enough fits, or what stands in the way of the best route. */
+export function ringFailure(pw: PlacementWorld): string {
+  const rects = ringRects(pw);
+  if (rects.length === 0) return `The village has spread too far to be walled: a wall must stay within ${BUILD_RADIUS} tiles of the green.`;
+  let bestN = Infinity;
+  let bestWhy = '';
+  for (const r of rects) {
+    let n = 0;
+    let why = '';
+    for (const s of ringSlots({ ...r, gate: 0 })) {
+      const c = canPlace(pw, 'wall', s.x, s.y, s.rot);
+      if (!c.ok) {
+        n++;
+        why = why || c.reason;
+      }
+    }
+    // a route that is clear but has no slot for a gate on the road side is stuck on that
+    if (n === 0) return 'The gate has no place on the side the road comes in from: something stands in the way there.';
+    if (n < bestN) {
+      bestN = n;
+      bestWhy = why;
+    }
+  }
+  return `There is no room to run a wall right round the village: even the best route is blocked in ${bestN} ${bestN === 1 ? 'place' : 'places'} by ${blocker(bestWhy)}.`;
 }
 
 /** Whether a piece (of art `wall` or `gateway`) is a footprint of this kind at all (used by tests and the preview). */

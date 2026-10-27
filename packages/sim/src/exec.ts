@@ -340,7 +340,7 @@ function resolveSite(c: Ctx, p: Person, step: Step): boolean {
       return true;
     }
   }
-  const spot = step.at === 'forest' || step.at === 'quarry' || step.at === 'buildsite' || step.at === 'meadow' || step.at === 'stream' || step.at === 'water' || step.at === 'plaza' ? spotNear(c, site.x, site.y, 1) : { x: site.x, y: site.y };
+  const spot = step.at === 'forest' || step.at === 'quarry' || step.at === 'buildsite' || step.at === 'meadow' || step.at === 'stream' || step.at === 'water' || step.at === 'plaza' ? spotNear(c, site.x, site.y, 1, p.id) : { x: site.x, y: site.y };
   step.tx = spot.x;
   step.ty = spot.y;
   return true;

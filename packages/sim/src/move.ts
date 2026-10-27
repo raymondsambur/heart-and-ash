@@ -1,5 +1,5 @@
 /** Walking: paths over the shared grid, one tile at a time, as in M0 (the view reports the step in progress and the tiles after it). */
-import { STEP_MS, TERRAIN_INFO, findPath, tileSpeed, type Dir, type Point } from '@hearth/shared';
+import { STEP_MS, TERRAIN_INFO, findPath, hash32, tileSpeed, type Dir, type Point } from '@hearth/shared';
 import type { Ctx } from './ctx';
 import { walked } from './roads';
 import type { Person } from './types';
@@ -65,11 +65,24 @@ export function stop(p: Person): void {
   p.stepLeft = 0;
 }
 
-/** A free tile near a site, so people do not stack up on one spot. */
-export function spotNear(c: Ctx, x: number, y: number, r: number): Point {
+/**
+ * A free tile near a site, so people do not stack up on one spot. When `who` is given the tile is the same every time for that
+ * person and site: someone who plans again on the way (they decide every few seconds) keeps walking to the same tile instead of
+ * being sent to a new one each time and never arriving.
+ */
+export function spotNear(c: Ctx, x: number, y: number, r: number, who?: number): Point {
+  const span = 2 * r + 1;
   for (let i = 0; i < 6; i++) {
-    const dx = c.rng.int(-r, r);
-    const dy = c.rng.int(-r, r);
+    let dx: number;
+    let dy: number;
+    if (who === undefined) {
+      dx = c.rng.int(-r, r);
+      dy = c.rng.int(-r, r);
+    } else {
+      const h = hash32(who, x * 4096 + y, i);
+      dx = (h % span) - r;
+      dy = ((h >>> 8) % span) - r;
+    }
     if (c.open(x + dx, y + dy)) return { x: x + dx, y: y + dy };
   }
   return { x, y };

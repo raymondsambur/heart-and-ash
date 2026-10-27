@@ -134,11 +134,13 @@ describe('placing orders', () => {
     expect(crossed).toBeGreaterThan(0);
   });
 
-  it('lays a wall segment either way and blocks the way through', () => {
+  it('lays a wall segment on the loop, one way or the other as the loop runs there', () => {
     const k = kit();
     const at = spotFor(k, 'wall');
     expect(placeOrder(k.c, 'wall', at.x, at.y, true, null).ok).toBe(true);
-    expect(k.st.buildings.at(-1)).toMatchObject({ kind: 'wall', w: 1, d: 4 });
+    const piece = k.st.buildings.at(-1)!;
+    expect(piece.kind).toBe('wall');
+    expect([piece.w, piece.d].sort()).toEqual([1, 4]);
   });
 });
 
