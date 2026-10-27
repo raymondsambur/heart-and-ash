@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
-import { CLOSE_REPLACED, GAME_HOUR_MS, PROTOCOL_VERSION, TICK_MS, type C2S, type EntityView, type MeResponse, type S2C, type TimeView, type WorldPayload } from '@hearth/shared';
+import { CLOSE_REPLACED, GAME_HOUR_MS, canPlace, PROTOCOL_VERSION, TICK_MS, type C2S, type EntityView, type MeResponse, type S2C, type TimeView, type WorldPayload } from '@hearth/shared';
 import { SNAPSHOT_VERSION } from '@hearth/sim';
 import { AuthService, SESSION_COOKIE } from './auth';
 import { nullLogger } from './log';
@@ -243,6 +243,38 @@ describe('websocket', () => {
     // Somebody who is not there gets a null sheet once.
     bot.send({ t: 'inspect', id: 99999 });
     await until(() => bot.of('sheet').some((m) => m.sheet === null), 3000, 'an empty sheet');
+    await bot.close();
+  });
+
+  it('takes build and cancel orders, refuses bad ones with a reason, and sends the order list', async () => {
+    const cookie = await signup('Builder');
+    const bot = await Bot.connect(cookie);
+    const { view } = await bot.enter();
+    const wr = (await http<WorldPayload>('GET', '/api/world', { cookie })).body;
+    const dec = (b: string): Uint8Array => new Uint8Array(Buffer.from(b, 'base64'));
+    const world = { w: wr.w, h: wr.h, terrain: dec(wr.terrain), objects: dec(wr.objects), blight: dec(wr.blight), start: { center: wr.center } };
+    const pw = { world, buildings: view.buildings, plots: view.plots };
+    let spot: { x: number; y: number } | null = null;
+    for (let r = 6; r < 20 && !spot; r++)
+      for (let dx = -r; dx <= r && !spot; dx++) if (canPlace(pw, 'house', wr.center.x + dx, wr.center.y + r).ok) spot = { x: wr.center.x + dx, y: wr.center.y + r };
+    expect(spot).not.toBeNull();
+    bot.send({ t: 'build', kind: 'house', x: spot!.x, y: spot!.y });
+    await until(() => bot.of('upd').some((u) => (u.orders?.length ?? 0) === 1), 3000, 'the order in an update');
+    expect(bot.of('note').some((n) => /ordered/i.test(n.text))).toBe(true);
+    const upd = bot.of('upd').find((u) => u.orders?.length === 1)!;
+    expect(upd.orders![0]).toMatchObject({ kind: 'house', mode: 'build', done: 0, x: spot!.x, y: spot!.y });
+    expect(upd.buildings!.find((b) => b.x === spot!.x && b.y === spot!.y)?.con).toMatchObject({ mode: 'build', done: 0 });
+    // the same spot again, and the edge of the map: refused with a reason
+    bot.send({ t: 'build', kind: 'house', x: spot!.x, y: spot!.y });
+    bot.send({ t: 'build', kind: 'house', x: 0, y: 0 });
+    await until(() => bot.of('err').length >= 2, 3000, 'two refusals');
+    expect(bot.of('err').every((e) => e.text.length > 10)).toBe(true);
+    // an order nobody has touched goes away when cancelled
+    bot.send({ t: 'cancel', order: upd.orders![0].id });
+    await until(() => bot.of('upd').some((u) => u.orders !== undefined && u.orders.length === 0), 3000, 'the order list empty');
+    // a message the schema does not know is refused
+    bot.send({ t: 'build', kind: 'castle', x: 5, y: 5 });
+    await until(() => bot.of('err').some((e) => e.code === 'bad_message'), 3000, 'bad_message');
     await bot.close();
   });
 
