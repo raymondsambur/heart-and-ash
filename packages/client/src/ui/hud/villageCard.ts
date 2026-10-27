@@ -6,7 +6,7 @@ import { STOCK_ICON, fmtCompact } from '../format';
 import { icon } from '../icons';
 
 /** The goods shown on the card, in order; anything else the server sends is ignored here. */
-const SHOWN = ['grain', 'firewood', 'timber', 'stone'];
+const SHOWN = ['ration', 'wood', 'planks', 'stone'];
 
 export function mountVillageCard(host: HTMLElement, ui: UiContext): { destroy(): void } {
   const name = h('div', { class: 'vcard-name' });
@@ -35,7 +35,8 @@ export function mountVillageCard(host: HTMLElement, ui: UiContext): { destroy():
     name.textContent = v?.name ?? t('app.title');
     sub.textContent = tn('village.population', ui.state.get('population'));
     const s = ui.state.get('stock');
-    for (const g of SHOWN) items.get(g)!.textContent = fmtCompact(s[g] ?? 0);
+    // Food is raw rations and cooked meals together (a meal feeds as well as a ration).
+    for (const g of SHOWN) items.get(g)!.textContent = fmtCompact((s[g] ?? 0) + (g === 'ration' ? (s.meal ?? 0) : 0));
   };
   update();
   const unsub = ui.state.subscribe(['village', 'population', 'stock'], update);

@@ -209,7 +209,7 @@ describe('websocket', () => {
     expect(view.view.population).toBe(12);
     expect(view.view.entities).toHaveLength(12);
     expect(view.view.buildings.length).toBeGreaterThanOrEqual(6);
-    expect(view.view.plots).toHaveLength(1);
+    expect(view.view.plots).toHaveLength(2);
     expect(view.view.speed).toBe(1);
     expect(view.view.time.season).toBe(0);
     expect(Object.keys(view.view.stock).length).toBeGreaterThan(0);
@@ -218,6 +218,31 @@ describe('websocket', () => {
     const upd = bot.of('upd')[0];
     expect(upd.ents).toHaveLength(12);
     expect(upd.buildings).toBeUndefined();
+    await bot.close();
+  });
+
+  it('sends the villager list, a watched villager sheet about once a second, and the feed', async () => {
+    const bot = await Bot.connect(await signup('Watcher'));
+    const { view } = await bot.enter();
+    expect(view.roster).toHaveLength(12);
+    const id = view.roster[0].id;
+    bot.send({ t: 'inspect', id });
+    await until(() => bot.of('sheet').length >= 1, 3000, 'a sheet');
+    const sheet = bot.of('sheet')[0].sheet!;
+    expect(sheet.id).toBe(id);
+    expect(sheet.needs).toHaveLength(7);
+    expect(sheet.why.goal.length).toBeGreaterThan(0);
+    // Then about one a second while watched.
+    await until(() => bot.of('sheet').length >= 3, 4000, 'repeated sheets');
+    // Stop watching: no more sheets.
+    bot.send({ t: 'inspect', id: null });
+    await sleep(TICK_MS * 3);
+    const n = bot.of('sheet').length;
+    await sleep(1300);
+    expect(bot.of('sheet').length).toBe(n);
+    // Somebody who is not there gets a null sheet once.
+    bot.send({ t: 'inspect', id: 99999 });
+    await until(() => bot.of('sheet').some((m) => m.sheet === null), 3000, 'an empty sheet');
     await bot.close();
   });
 
@@ -319,6 +344,8 @@ describe('persistence', () => {
     await until(() => bot.last('upd')?.speed === 0, 2000, 'pause');
     await sleep(TICK_MS * 3);
     const before = bot.last('upd')!;
+    // The stock the player last saw: the first view, then any update that carried a new one.
+    const stockSeen = [...bot.of('upd')].reverse().find((u) => u.stock)?.stock ?? view.stock;
     await bot.close();
     // The disconnect wrote a snapshot.
     const row = server.db.getVillage(server.db.getUserByName('Survivor')!.id)!;
@@ -343,7 +370,7 @@ describe('persistence', () => {
       expect({ x: f.x, y: f.y, nx: f.nx, ny: f.ny, step: f.step, face: f.face, state: f.state, act: f.act }).toEqual({ x: e.x, y: e.y, nx: e.nx, ny: e.ny, step: e.step, face: e.face, state: e.state, act: e.act });
     }
     expect(after.buildings.length).toBe(view.buildings.length);
-    expect(after.stock).toEqual(view.stock);
+    expect(after.stock).toEqual(stockSeen);
 
     // And it carries on from there.
     again.send({ t: 'speed', speed: 2 });

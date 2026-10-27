@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { GAME_DAY_MS, GAME_HOUR_MS, SIM_STEP_MS, START_HOUR, DAYS_PER_SEASON, isPassable } from '@hearth/shared';
-import { createSim, SnapshotError, SNAPSHOT_VERSION } from './index';
+import { strHash, GAME_DAY_MS, GAME_HOUR_MS, SIM_STEP_MS, START_HOUR, DAYS_PER_SEASON, isPassable } from '@hearth/shared';
+import { createSim, SnapshotError, SNAPSHOT_VERSION, type SimSnapshot } from './index';
 
 const DAY = GAME_DAY_MS;
 
@@ -30,7 +30,7 @@ describe('sim: determinism', () => {
   it('differs between seeds', () => {
     const a = run(1, 60_000).serialize();
     const b = run(2, 60_000).serialize();
-    expect(JSON.stringify(a.villagers)).not.toBe(JSON.stringify(b.villagers));
+    expect(JSON.stringify(a.people)).not.toBe(JSON.stringify(b.people));
   });
 
   it('uses no wall clock or Math.random', () => {
@@ -75,7 +75,8 @@ describe('sim: serialize and restore', () => {
     const snap = run(5, 1000).serialize();
     expect(() => createSim({ seed: 5, saved: { ...snap, v: SNAPSHOT_VERSION + 1 } })).toThrow(SnapshotError);
     expect(() => createSim({ seed: 5, saved: { ...snap, speed: 3 } })).toThrow(SnapshotError);
-    expect(() => createSim({ seed: 5, saved: { ...snap, villagers: 'no' as never } })).toThrow(SnapshotError);
+    expect(() => createSim({ seed: 5, saved: { ...snap, people: 'no' as never } })).toThrow(SnapshotError);
+    expect(() => createSim({ seed: 5, saved: { ...snap, people: [{ id: 1 } as never] } })).toThrow(SnapshotError);
     expect(() => createSim({ seed: 6, saved: snap })).toThrow(/seed/);
     expect(() => createSim({ seed: 5, saved: null as never, population: 1 })).not.toThrow();
   });
@@ -137,26 +138,33 @@ describe('sim: commands', () => {
   });
 });
 
-describe('sim: placeholder villagers', () => {
-  it('starts with 12 people at home, on walkable ground', () => {
+describe('sim: the villagers', () => {
+  it('start with 12 people at home, on walkable ground, with minds of their own', () => {
     const sim = createSim({ seed: 1337 });
     const v = sim.view();
     expect(v.population).toBe(12);
     expect(v.entities).toHaveLength(12);
+    expect(v.roster).toHaveLength(12);
     expect(v.buildings.length).toBeGreaterThanOrEqual(6);
-    expect(v.plots).toHaveLength(1);
+    expect(v.plots).toHaveLength(2);
     for (const e of v.entities) expect(isPassable(sim.world, e.x, e.y)).toBe(true);
     expect(new Set(v.entities.map((e) => e.id)).size).toBe(12);
+    for (const p of sim.inspect().people) {
+      expect(p.traits.length).toBeGreaterThanOrEqual(2);
+      expect(Object.keys(p.skills).length).toBeGreaterThanOrEqual(15);
+      expect(p.known.length).toBeGreaterThan(5);
+    }
+    // Families live together: couples are partners, children know their parents.
+    const people = sim.inspect().people;
+    for (const p of people) if (p.partner !== null) expect(people.find((x) => x.id === p.partner)?.partner).toBe(p.id);
   });
 
-  it('wander between buildings during the day and stay on walkable ground', () => {
+  it('work, eat, sleep and walk on walkable ground through a day', () => {
     const sim = createSim({ seed: 1337 });
-    const start = new Map(sim.view().entities.map((e) => [e.id, `${e.x},${e.y}`]));
-    let moved = 0;
+    const acts = new Set<string>();
     let walking = 0;
-    for (let i = 0; i < 1500; i++) {
-      sim.step(SIM_STEP_MS);
-      if (i % 20 !== 0) continue;
+    for (let i = 0; i < 24 * 4; i++) {
+      sim.step(GAME_HOUR_MS / 4);
       for (const e of sim.view().entities) {
         expect(isPassable(sim.world, e.x, e.y)).toBe(true);
         if (e.state === 'walk') {
@@ -165,22 +173,71 @@ describe('sim: placeholder villagers', () => {
           expect(e.step).toBeGreaterThan(0);
         }
       }
+      for (const p of sim.inspect().people) if (p.act) acts.add(p.act.step.a);
     }
-    for (const e of sim.view().entities) if (start.get(e.id) !== `${e.x},${e.y}`) moved++;
-    expect(moved).toBeGreaterThan(6);
-    expect(walking).toBeGreaterThan(0);
+    expect(walking).toBeGreaterThan(50);
+    for (const a of ['sleep', 'eat']) expect(acts.has(a)).toBe(true);
+    // Somebody did real work for the village.
+    expect(sim.inspect().stats.jobs_done).toBeGreaterThan(0);
   });
 
-  it('go home and rest at night', () => {
+  it('sleep indoors through most of the night', () => {
     const sim = createSim({ seed: 1337 });
-    // Run to 02:00 of the first night.
     sim.step((24 - START_HOUR + 2) * GAME_HOUR_MS);
     const v = sim.view();
     expect(v.time.hours).toBeGreaterThanOrEqual(2);
-    const doors = new Map(v.buildings.map((b) => [b.id, b.door]));
-    const homeOf = new Map(sim.serialize().villagers.map((p) => [p.id, p.home]));
-    expect(v.entities.every((e) => e.state === 'rest')).toBe(true);
-    for (const e of v.entities) expect(doors.get(homeOf.get(e.id)!)).toEqual({ x: e.x, y: e.y });
+    const sleepy = sim.inspect().people.filter((p) => p.act?.step.a === 'sleep' || p.hidden);
+    expect(sleepy.length).toBeGreaterThanOrEqual(7);
+  });
+
+  it('feed and warm themselves through the first winter without starving', () => {
+    const sim = createSim({ seed: 1337 });
+    for (let d = 0; d < DAYS_PER_SEASON * 4; d++) sim.step(DAY);
+    const st = sim.inspect();
+    expect(st.stats.death_hunger ?? 0).toBe(0);
+    expect(st.stats.death_thirst ?? 0).toBe(0);
+    expect(st.stats.death_cold ?? 0).toBe(0);
+    expect(st.people.length).toBeGreaterThanOrEqual(12);
+    expect(st.stats.harvest_ripe).toBeGreaterThan(0);
+  });
+
+  it('keep every person busy or explained: nobody is blocked for three days', () => {
+    const sim = createSim({ seed: 21 });
+    let worst = 0;
+    for (let d = 0; d < 24; d++) {
+      sim.step(DAY);
+      const st = sim.inspect();
+      for (const p of st.people) if (p.blocked) worst = Math.max(worst, (st.totalMs - p.blocked.since) / DAY);
+    }
+    expect(worst).toBeLessThan(3);
+  });
+
+  it('explain what each person is doing in a sentence they can show on the sheet', () => {
+    const sim = createSim({ seed: 1337 });
+    sim.step(DAY / 2);
+    for (const b of sim.view().roster) {
+      const s = sim.sheet(b.id)!;
+      expect(s).not.toBeNull();
+      expect(s.doing.length).toBeGreaterThan(2);
+      expect(s.why.goal.length).toBeGreaterThan(2);
+      expect(s.needs).toHaveLength(7);
+      expect(s.traits.length).toBeGreaterThanOrEqual(2);
+      expect(s.mood).toBeGreaterThanOrEqual(0);
+      expect(JSON.stringify(s)).not.toMatch(/[　-鿿]/);
+    }
+    expect(sim.sheet(99999)).toBeNull();
+  });
+
+  it('put births, arrivals, deaths and dreams in the feed', () => {
+    const sim = createSim({ seed: 1337 });
+    const kinds = new Set<string>();
+    for (let d = 0; d < DAYS_PER_SEASON * 3; d++) {
+      sim.step(DAY);
+      for (const e of sim.events()) if (e.t === 'feed') kinds.add(e.item.kind);
+    }
+    expect(kinds.has('farm')).toBe(true);
+    expect(kinds.size).toBeGreaterThanOrEqual(3);
+    expect(sim.view().feed.length).toBeGreaterThan(0);
   });
 
   it('supports other population sizes', () => {
@@ -189,3 +246,62 @@ describe('sim: placeholder villagers', () => {
     expect(sim.view().entities).toHaveLength(60);
   });
 });
+
+describe('sim: save and load', () => {
+  it('continues exactly as it would have after a save and load in the middle of the run', () => {
+    const a = createSim({ seed: 11 });
+    a.step(DAY * 3);
+    const saved = JSON.parse(JSON.stringify(a.serialize())) as SimSnapshot;
+    const b = createSim({ seed: 11, saved });
+    a.step(DAY * 2);
+    b.step(DAY * 2);
+    expect(JSON.stringify(b.serialize())).toBe(JSON.stringify(a.serialize()));
+  });
+
+  it('upgrades a version 1 snapshot (the M0 placeholder villagers) into people with minds', () => {
+    const base = createSim({ seed: 17 }).serialize();
+    const old = {
+      v: 1,
+      seed: 17,
+      rng: base.rng,
+      totalMs: 5 * GAME_HOUR_MS,
+      carryMs: 0,
+      speed: 2,
+      weather: 'clear',
+      nextId: 4,
+      villageName: 'Old Ford',
+      stock: { grain: 70, firewood: 20, timber: 10, stone: 5 },
+      buildings: base.buildings,
+      plots: base.plots,
+      villagers: [1, 2, 3].map((id) => ({ id, name: `Villager ${id}`, look: base.people[0].look, role: 'villager', home: base.buildings[id - 1].id, x: base.buildings[id - 1].door.x, y: base.buildings[id - 1].door.y, path: [], nx: 0, ny: 0, stepMs: 0, stepLeft: 0, face: 0, act: null, wait: 0, goal: -1 })),
+    };
+    const sim = createSim({ seed: 17, saved: old as unknown as SimSnapshot });
+    const st = sim.inspect();
+    expect(st.people.map((p) => p.name)).toEqual(['Villager 1', 'Villager 2', 'Villager 3']);
+    expect(st.stock.ration).toBe(70);
+    expect(st.stock.wood).toBe(20);
+    expect(st.stock.planks).toBe(10);
+    expect(sim.view().speed).toBe(2);
+    expect(sim.serialize().v).toBe(SNAPSHOT_VERSION);
+    // And it lives on.
+    sim.step(DAY);
+    expect(sim.view().entities).toHaveLength(3);
+  });
+});
+
+describe('sim: golden run', () => {
+  // A fingerprint of seed 1337 after four game days. It changes whenever the behaviour of the village changes on purpose:
+  // when it does, check the new run looks right (npm run soak) and update the digest and the facts below together.
+  it('matches the recorded run', () => {
+    const sim = createSim({ seed: 1337 });
+    sim.step(4 * DAY);
+    const snap = sim.serialize();
+    const st = sim.inspect();
+    const facts = { people: st.people.length, day: sim.view().time.day, jobsDone: Math.round(st.stats.jobs_done ?? 0), meals: Math.round(st.stats.meals ?? 0), chats: st.stats.chats ?? 0 };
+    const json = JSON.stringify(snap);
+    const digest = `${strHash(json).toString(16)}:${json.length}`;
+    expect({ facts, digest }).toEqual(GOLDEN);
+  });
+});
+
+const GOLDEN = { facts: { people: 12, day: 4, jobsDone: 28, meals: 92, chats: 74 }, digest: 'c75da9c5:33837' };

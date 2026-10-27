@@ -25,6 +25,8 @@ Status: built on the branch `m0-skeleton`; what was copied, adapted and left out
 
 Done when: left alone for a game year at 4x, the village is visibly alive (people work, rest, talk, change), the villager sheet explains why each person acts, and the bench is inside budget at 12 and 60 people.
 
+Status: built on the branch `m1-villagers` (stacked on `m0-skeleton`); what was built, what differs from the spec and the measured numbers are in `docs/notes/m1.md`.
+
 ## M2: visible construction and demolition
 
 - Plots, build and demolish orders, the job board feeding builders, materials and stockpiles.

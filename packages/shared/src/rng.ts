@@ -32,7 +32,8 @@ export class Rng {
   }
 
   get state(): number {
-    return this.s;
+    // Always unsigned, so a saved and restored generator serialises the same as one that never stopped.
+    return this.s >>> 0;
   }
 
   set state(v: number) {

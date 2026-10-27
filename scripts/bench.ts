@@ -3,9 +3,10 @@
  *
  * Usage: npm run bench [-- --days 3]
  *
- * For M0 the people are the placeholder villagers (they wander between buildings, using the real pathfinding);
- * M1 replaces them with real agents and this script measures those instead. The architecture budget is under
- * 20 ms of simulation per real second of 1x time, i.e. under 20 * 360 = 7200 ms per game day (a day is 6 real minutes).
+ * The people are the real M1 agents (needs, planner, job board, talk, ambitions, life events). Everyone starts at home on
+ * day 0, so the first days include the morning rush on the planner; the numbers are an honest middle of the road, not a
+ * best case. The architecture budget is under 20 ms of simulation per real second of 1x time, i.e. under
+ * 20 * 360 = 7200 ms per game day (a day is 6 real minutes).
  */
 import { GAME_DAY_MS, SIM_STEP_MS } from '@hearth/shared';
 import { createSim } from '@hearth/sim';

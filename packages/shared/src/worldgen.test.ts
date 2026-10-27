@@ -46,7 +46,8 @@ describe('worldgen', () => {
       const s = w.start;
       expect(s.buildings.filter((b) => b.kind === 'house')).toHaveLength(5);
       expect(s.buildings.filter((b) => b.kind === 'warehouse')).toHaveLength(1);
-      expect(s.plots).toHaveLength(1);
+      expect(s.buildings.filter((b) => b.kind === 'shrine')).toHaveLength(1);
+      expect(s.plots).toHaveLength(2);
       expect(w.objects[s.well.y * w.w + s.well.x]).toBe(O.Well);
       for (const b of s.buildings) {
         for (let y = b.y; y < b.y + b.d; y++) for (let x = b.x; x < b.x + b.w; x++) expect(w.objects[y * w.w + x]).toBe(O.Building);

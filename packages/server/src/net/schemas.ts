@@ -19,6 +19,7 @@ const speed = z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(4)]);
 export const c2sSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('hello'), v: int(0, 1000) }),
   z.object({ t: z.literal('speed'), speed }),
+  z.object({ t: z.literal('inspect'), id: int(0, 2 ** 31 - 1).nullable() }),
   z.object({ t: z.literal('ping'), n: int(0, 2 ** 31 - 1) }),
 ]);
 

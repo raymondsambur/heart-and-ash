@@ -12,6 +12,9 @@ import type { UiContext } from '../context';
 import { h } from '../dom';
 import { mountClock } from '../hud/clock';
 import { mountConnection } from '../hud/connection';
+import { mountFeed } from '../hud/feed';
+import { mountPeople } from '../hud/people';
+import { mountSheet } from '../hud/sheet';
 import { mountTimeControls } from '../hud/timeControls';
 import { mountVillageCard } from '../hud/villageCard';
 import type { SettingsStore } from '../settings';
@@ -43,8 +46,9 @@ export function createGameScreen(o: GameScreenOptions): GameScreen {
   const hudTL = h('div', { class: 'hud-tl' });
   const hudTR = h('div', { class: 'hud-tr' });
   const hudBC = h('div', { class: 'hud-bc' });
+  const hudBL = h('div', { class: 'hud-bl' });
   const hudLayers = h('div', { class: 'hud-layers' });
-  const hud = h('div', { class: 'hud' }, hudTL, hudTR, hudBC, hudLayers);
+  const hud = h('div', { class: 'hud' }, hudTL, hudTR, hudBC, hudBL, hudLayers);
   const root = h('div', { class: 'game' }, canvas, hud);
 
   // ---- renderer -----------------------------------------------------------------------------------
@@ -74,6 +78,7 @@ export function createGameScreen(o: GameScreenOptions): GameScreen {
     state: store,
     session,
     gameView,
+    portrait: (cv, look) => render.drawLookPreview(cv, look, { scale: 3, backdrop: false }),
     settings,
     toast: (text, level = 'info') => toast(text, level),
     reload: () => location.reload(),
@@ -82,7 +87,12 @@ export function createGameScreen(o: GameScreenOptions): GameScreen {
   };
 
   // ---- HUD ---------------------------------------------------------------------------------------------------
-  const parts = [mountVillageCard(hudTL, ui), mountClock(hudTR, ui), mountTimeControls(hudBC, ui), mountConnection(hudLayers, ui, socket)];
+  const parts = [mountVillageCard(hudTL, ui), mountPeople(hudTL, ui), mountClock(hudTR, ui), mountSheet(hudTR, ui), mountTimeControls(hudBC, ui), mountFeed(hudBL, ui), mountConnection(hudLayers, ui, socket)];
+
+  // Tapping a person selects them; tapping the ground lets go.
+  gameView.onPick((pick, gesture) => {
+    if (gesture === 'tap') session.select(pick.entityId);
+  });
 
   // A rejected WebSocket upgrade looks like a plain network failure (the server answers 401 before upgrading).
   // While reconnecting, ask the HTTP API whether the session is still valid and fall back to sign-in if it is not.
