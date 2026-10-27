@@ -219,4 +219,6 @@ export interface PolicyView {
   /** The planned loop of the village wall, once it is begun, and how far it is (M6). */
   ring: WallRing | null;
   wall: { built: number; total: number; gate: boolean; closed: boolean } | null;
+  /** Why the wall cannot go up now, in words, or null (shown in the Manage tab). */
+  wallBlock: string | null;
 }

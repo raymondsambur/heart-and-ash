@@ -71,7 +71,7 @@ export function initialState(): State {
     orders: [],
     wishes: [],
     status: { foodDays: 0, fuelDays: 99, rationing: 0, tier: 0, silver: 0, blight: 0, alert: null },
-    policy: { priorities: [2, 2, 2, 2, 2, 2, 2], rules: [], offers: [], away: false, crisis: null, maxRules: 16, ring: null, wall: null },
+    policy: { priorities: [2, 2, 2, 2, 2, 2, 2], rules: [], offers: [], away: false, crisis: null, maxRules: 16, ring: null, wall: null, wallBlock: null },
     reports: [],
     outside: { name: '', regard: 0, wealth: 50, silver: 0, pact: false, caravanIn: null, news: [], nextTier: null, prices: {} },
     tool: null,

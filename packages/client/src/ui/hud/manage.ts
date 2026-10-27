@@ -28,6 +28,7 @@ addStrings({
   'manage.wall': 'Village wall: {built} of {total} pieces up, {gate}.',
   'manage.wall.gate.yes': 'the gate stands',
   'manage.wall.gate.no': 'no gate yet',
+  'manage.wall.blocked': 'The wall cannot go up: {why}',
   'manage.wall.closed': 'The wall is closed round the village: a stand against raiders.',
   'manage.work.hint': 'How much of the village’s labour goes where. People still choose for themselves, and eat, sleep and tend the sick first.',
   'manage.rules.hint': 'A rule acts while its condition holds, every game hour, even when you are away. Later rules win over earlier ones.',
@@ -125,8 +126,10 @@ export function mountManage(host: HTMLElement, layers: HTMLElement, ui: UiContex
   const renderWork = (): void => {
     const levels = st.get('policy').priorities;
     const wall = st.get('policy').wall;
+    const blocked = st.get('policy').wallBlock;
     work.replaceChildren(
       h('p', { class: 'manage-hint' }, t('manage.work.hint')),
+      ...(blocked ? [h('p', { class: 'manage-hint manage-warn', role: 'status' }, t('manage.wall.blocked', { why: blocked }))] : []),
       ...(wall ? [h('p', { class: 'manage-hint' }, wall.closed ? t('manage.wall.closed') : t('manage.wall', { built: wall.built, total: wall.total, gate: wall.gate ? t('manage.wall.gate.yes') : t('manage.wall.gate.no') }))] : []),
       ...JOB_GROUPS.map((g, i) =>
         h(

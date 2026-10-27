@@ -442,6 +442,7 @@ export function createSim(opts: CreateSimOptions): Sim {
           maxRules: Math.min(MAX_RULES, BAL.tiers.maxRules[st.tier]),
           ring: st.ring ? { ...st.ring } : null,
           wall: wallState(c),
+          wallBlock: st.wallBlock ?? null,
         },
         outside: outsideView(c),
         flora: floraView(st.flora),

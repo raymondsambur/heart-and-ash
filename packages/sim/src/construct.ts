@@ -21,6 +21,8 @@ import {
   footprintOf,
   nearestSlot,
   planRing,
+  ringFailure,
+  ringProgress,
   reservedSlots,
   wallCandidates,
   wallWhy,
@@ -43,6 +45,7 @@ import { newField } from './actions';
 import { clearBrush, clearFlora } from './flora';
 import { clearRoads } from './roads';
 import { tierReason } from './outside';
+import { bestGate, isClosed } from './walls';
 import type { CommandResult, Order, Person } from './types';
 import type { Ctx } from './ctx';
 import type { Draft } from './jobs';
@@ -51,6 +54,9 @@ import { stop } from './move';
 import { addMood, mem, stat } from './util';
 
 const fail = (code: string, text: string): CommandResult => ({ ok: false, code, text });
+
+/** After a search for a wall loop that found none, the next one waits this many days. */
+const RING_RETRY_DAYS = 15;
 
 // ---------------------------------------------------------------------------------------------------
 // The map under the buildings
@@ -143,11 +149,41 @@ export function placeOrder(c: Ctx, kind: BuildKind, x0: number, y0: number, rot0
   if (wall) {
     // The wall is one loop with one gate: a piece goes on the next free slot of the ring, the one nearest to where you pointed.
     const pw = { world: c.world, buildings: st.buildings, plots: st.plots };
-    const ring = st.ring ?? planRing(pw, approachOf(c));
-    if (!ring) return fail('no_ring', 'There is no room to run a wall right round the village.');
+    let ring = st.ring;
+    if (!ring && st.ringTried && c.day - st.ringTried.day < RING_RETRY_DAYS) {
+      // looked for a loop not long ago and found none: the search is not made again every day
+      st.wallBlock = st.ringTried.why;
+      return fail('no_ring', st.ringTried.why);
+    }
+    if (!ring) {
+      const approach = approachOf(c);
+      // the first loop that fits the ground, with the gate where the trips out are shortest and nothing the village works at is cut off
+      ring = planRing(pw, approach, { pickGate: (r0, cands) => bestGate(c, r0, cands) });
+      if (!ring) {
+        const why = planRing(pw, approach)
+          ? 'a wall right round the village would cut it off from the forest, quarry, meadow or stream on the other side of the water.'
+          : ringFailure(pw);
+        st.wallBlock = why;
+        st.ringTried = { day: c.day, why };
+        return fail('no_ring', why);
+      }
+      st.ringTried = undefined;
+    }
+    if (isClosed(c)) {
+      st.wallBlock = undefined;
+      return fail('wall_closed', 'The wall is already closed round the village.');
+    }
     const slot = nearestSlot(wallCandidates(pw, kind, ring), x, y);
-    if (!slot) return fail('wall_why', wallWhy(pw, kind, ring));
+    if (!slot) {
+      const why = wallWhy(pw, kind, ring);
+      // finished, or only the gate left to raise, is not a block
+      const p = ringProgress(pw, ring);
+      const held = p.built < p.total && !(kind === 'wall' && p.built >= p.total - 1 && !p.gate) && !(kind === 'gate' && p.gate);
+      st.wallBlock = held ? why : undefined;
+      return fail('wall_why', why);
+    }
     st.ring = ring;
+    st.wallBlock = undefined;
     x = slot.x;
     y = slot.y;
     rot = slot.rot;
@@ -188,6 +224,7 @@ export function placeOrder(c: Ctx, kind: BuildKind, x0: number, y0: number, rot0
     if (isField) st.nextPlotId--;
     else st.nextBuildingId--;
     structuresChanged(c);
+    if (wall) st.wallBlock = 'builders cannot reach the next piece: water or the wall itself cuts it off from the village.';
     return fail('unreachable', 'Nobody could walk there from the village green.');
   }
   syncCon(c, order);
@@ -497,7 +534,9 @@ export function constructionJobs(c: Ctx, draft: (key: string, goal: Draft['goal'
       const stage = bp.stages[Math.min(o.done, bp.stages.length - 1)];
       for (const g of Object.keys(totalNeeds(bp)) as Good[]) {
         const lack = shortfall(o, g) - (carried.get(`${o.id}:${g}`) ?? 0);
-        if (lack >= 1 && (c.st.stock[g] ?? 0) >= 1) {
+        // a stage waits for every last bit: a shortfall under one unit still gets its load once the stage is held up by it
+        const held = !stageReady(o) && shortfall(o, g, 0) - (carried.get(`${o.id}:${g}`) ?? 0) > 1e-6;
+        if ((lack >= 1 || held) && (c.st.stock[g] ?? 0) >= 1) {
           out.push(draft(`haul:${o.id}:${g}`, { kind: 'act', action: 'deliver_material', order: o.id, good: g, label: `bring ${GOOD_LABEL[g].toLowerCase()} to the ${name}` }, 5, Math.min(3, Math.ceil(lack / 5))));
         }
       }

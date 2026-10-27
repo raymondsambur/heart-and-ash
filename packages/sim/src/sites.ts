@@ -104,6 +104,9 @@ export class SiteIndex {
   sync(buildings: readonly BuildingDef[], plots: readonly PlotDef[], orders: readonly { id: number; door: Point }[]): void {
     const live = new Map(buildings.map((b) => [b.id, b]));
     const livePlots = new Map(plots.map((p) => [p.id, p]));
+    // A place of the map (a stretch of stream, forest or meadow) with a building on it offers nothing: nobody could stand there.
+    const built = new Set<number>();
+    for (const b of buildings) for (let y = b.y; y < b.y + b.d; y++) for (let x = b.x; x < b.x + b.w; x++) built.add(y * this.world.w + x);
     const list: Site[] = [];
     for (const s of this.fixed) {
       let on = true;
@@ -113,6 +116,8 @@ export class SiteIndex {
       } else if (s.kind === 'field' && s.plot !== undefined) {
         const p = livePlots.get(s.plot);
         on = !!p && !p.con;
+      } else if (built.has(s.y * this.world.w + s.x)) {
+        on = false;
       }
       if (on) list.push(s);
     }

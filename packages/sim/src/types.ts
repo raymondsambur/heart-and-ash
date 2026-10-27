@@ -380,6 +380,10 @@ export interface SimState {
   chops: Record<number, number>;
   /** M6: the planned loop of the village wall, once it is begun. */
   ring: WallRing | null;
+  /** Why the last wall order was refused, while the wall is held up (not saved: the rules ask again within a day). */
+  wallBlock?: string;
+  /** When a search for a wall loop last found none, and why (not saved). */
+  ringTried?: { day: number; why: string };
   /** The map's width and height in tiles (a village from before M6 has the first, small map). */
   size: number;
   /** Terrain that differs from the map (worn roads), tile to terrain code; the traffic that makes and unmakes it, and days a road has been quiet. */

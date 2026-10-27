@@ -278,7 +278,8 @@ export function canPlace(pw: PlaceWorld, kind: BuildKind, x: number, y: number, 
       if (tx < 1 || ty < 1 || tx >= world.w - 1 || ty >= world.h - 1) return { ok: false, reason: 'Too close to the edge of the map.' };
       if (Math.max(Math.abs(tx - c.x), Math.abs(ty - c.y)) > BUILD_RADIUS) return { ok: false, reason: 'Too far from the village.' };
       const i = ty * world.w + tx;
-      if (!OK_TERRAIN.has(world.terrain[i])) return { ok: false, reason: 'The ground is not fit to build on (water, rock, road or paving).' };
+      // A wall may cross a stream: shallow water is already no way through, so a piece standing in it closes the line.
+      if (!OK_TERRAIN.has(world.terrain[i]) && !(isWallKind && kind === 'wall' && world.terrain[i] === T.Water)) return { ok: false, reason: isWallKind ? 'The ground is not fit for a wall (deep water, rock, stone road or paving).' : 'The ground is not fit to build on (water, rock, road or paving).' };
       if (!objectFree(tx, ty)) return { ok: false, reason: 'Something is in the way (a tree, a rock or a building).' };
       if (world.blight[i] > BUILD_BLIGHT_LIMIT) return { ok: false, reason: 'The Blight lies too thick here.' };
       if (covered(tx, ty)) return { ok: false, reason: 'Another building or field is already here.' };
