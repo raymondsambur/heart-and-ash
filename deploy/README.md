@@ -82,6 +82,10 @@ AUTOSAVE_MS=30000
 AWAY_CAP_HOURS=8
 ```
 
+`DEV_MODE=1` switches on the dev tools (a DEV button in the game with a fast-forward of any number of game days, and an undo of the
+last fast-forward). It is on by default outside production and off in production: a fast-forward really changes the village, so a
+deployed server has to be told. The village as it was before the last fast-forward is kept in the `kv` table and put back by the undo.
+
 `COOKIE_SECURE` and `TRUST_PROXY` are for when the game sits behind an HTTPS reverse proxy. `AWAY_CAP_HOURS` is a stub
 until milestone M4 (away time); the server reads it and ignores it. Apply changes with a restart.
 

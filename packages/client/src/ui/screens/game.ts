@@ -19,6 +19,7 @@ import { mountHints } from '../hud/hints';
 import { mountManage } from '../hud/manage';
 import { mountPeople } from '../hud/people';
 import { mountSheet } from '../hud/sheet';
+import { mountDevTools } from '../hud/devTools';
 import { mountTimeControls } from '../hud/timeControls';
 import { mountVillageCard } from '../hud/villageCard';
 import type { SettingsStore } from '../settings';
@@ -95,7 +96,7 @@ export function createGameScreen(o: GameScreenOptions): GameScreen {
   const managePanel = mountManage(hudBR, hudLayers, ui);
   const hints = mountHints(hudLayers, ui);
   const buildPanel = mountBuild(hudBR, ui, world);
-  const parts = [managePanel, hints, mountVillageCard(hudTL, ui), mountPeople(hudTL, ui), mountClock(hudTR, ui), mountSheet(hudTR, ui), mountTimeControls(hudBC, ui), mountFeed(hudBL, ui), buildPanel, mountConnection(hudLayers, ui, socket)];
+  const parts = [managePanel, hints, mountVillageCard(hudTL, ui), mountPeople(hudTL, ui), mountClock(hudTR, ui), mountDevTools(hudTR, ui), mountSheet(hudTR, ui), mountTimeControls(hudBC, ui), mountFeed(hudBL, ui), buildPanel, mountConnection(hudLayers, ui, socket)];
 
   // With a build tool in hand the pointer lays out footprints. Otherwise a tap selects a person, or a building to read its
   // progress; tapping bare ground lets go.

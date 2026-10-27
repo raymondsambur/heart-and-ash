@@ -20,7 +20,8 @@ describe('mock server', () => {
     vi.advanceTimersByTime(50);
     expect(ws.readyState).toBe(1);
     ws.send(JSON.stringify({ t: 'hello', v: PROTOCOL_VERSION }));
-    expect(got.map((m) => m.t)).toEqual(['welcome', 'view']);
+    expect(got.map((m) => m.t)).toEqual(['welcome', 'view', 'dev']);
+    expect(got[0]).toMatchObject({ t: 'welcome', dev: true });
     ws.send(JSON.stringify({ t: 'speed', speed: 4 }));
     expect(got.at(-1)).toMatchObject({ t: 'upd', speed: 4 });
     vi.advanceTimersByTime(1000);

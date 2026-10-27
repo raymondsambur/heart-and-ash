@@ -21,6 +21,9 @@ export const GAME_HOUR_MS = GAME_DAY_MS / HOURS_PER_DAY;
 /** The game starts at dawn of day 0. */
 export const START_HOUR = 6;
 
+/** Dev mode: the most game days one fast-forward may ask for. */
+export const MAX_SKIP_DAYS = 730;
+
 /** The server advances the sim in constant slices of game time; speed only changes how many slices run per real second. */
 export const SIM_STEP_MS = 100;
 /** Real milliseconds between server ticks. */

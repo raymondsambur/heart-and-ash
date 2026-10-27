@@ -7,7 +7,7 @@
  * - The village: `createSim` with the seed from `?seed=` (default 1337). The snapshot is kept in localStorage.
  * - The socket speaks the same protocol as the server: hello -> welcome + view, then `upd` five times a second.
  */
-import { MAP_SIZE, PROTOCOL_VERSION, SIM_STEP_MS, generateWorld, hash32, type C2S, type EntityUpdate, type FeedEntry, type MeResponse, type S2C, type WorldPayload } from '@hearth/shared';
+import { GAME_DAY_MS, GAME_HOUR_MS, MAP_SIZE, PROTOCOL_VERSION, SIM_STEP_MS, generateWorld, hash32, type C2S, type EntityUpdate, type FeedEntry, type MeResponse, type S2C, type WorldPayload } from '@hearth/shared';
 import { createSim, type Sim, type SimSnapshot } from '@hearth/sim';
 import { encodeBase64 } from './base64';
 import type { HttpResponse, HttpTransport } from './api';
@@ -95,7 +95,7 @@ export function installMock(opts: MockOptions = {}): MockServer {
     },
   };
 
-  const socketFactory: SocketFactory = () => new MockSocket(load, save);
+  const socketFactory: SocketFactory = () => new MockSocket(load, save, (s) => (sim = s));
   return { transport, socketFactory, sim: load };
 }
 
@@ -117,10 +117,14 @@ class MockSocket implements SocketLike {
   private ordersJson = '';
   private rosterAt = 0;
   private sim: Sim | null = null;
+  /** Dev tools: a fast-forward in progress (game ms) and the village as it was before the last one. */
+  private skip: { left: number; total: number } | null = null;
+  private backup: SimSnapshot | null = null;
 
   constructor(
     private readonly load: () => Sim,
     private readonly save: () => void,
+    private readonly replace: (s: Sim) => void,
   ) {
     setTimeout(() => {
       this.readyState = 1;
@@ -143,8 +147,9 @@ class MockSocket implements SocketLike {
       this.sim.events();
       this.rosterJson = JSON.stringify(view.roster);
       this.ordersJson = JSON.stringify({ o: view.orders, w: view.wishes });
-      this.emit({ t: 'welcome', v: PROTOCOL_VERSION, user: { id: 1, username: 'mock' }, village: { name: this.sim.serialize().villageName, seed: this.sim.seed } });
+      this.emit({ t: 'welcome', v: PROTOCOL_VERSION, user: { id: 1, username: 'mock' }, village: { name: this.sim.serialize().villageName, seed: this.sim.seed }, dev: true });
       this.emit({ t: 'view', view });
+      this.sendDev();
       this.last = performance.now();
       this.timer = setInterval(() => this.tick(), 100);
       return;
@@ -168,6 +173,37 @@ class MockSocket implements SocketLike {
       this.update();
       return;
     }
+    if (msg.t === 'dev_skip' && this.sim) {
+      if (msg.days <= 0) return this.finishSkip();
+      const ms = msg.days * GAME_DAY_MS;
+      if (this.skip) {
+        this.skip.left += ms;
+        this.skip.total += ms;
+      } else {
+        this.backup = JSON.parse(JSON.stringify(this.sim.serialize())) as SimSnapshot;
+        this.skip = { left: ms, total: ms };
+      }
+      this.acc = 0;
+      this.sendDev();
+      return;
+    }
+    if (msg.t === 'dev_undo' && this.sim) {
+      if (!this.backup) return this.emit({ t: 'err', code: 'no_backup', text: 'There is no skip to undo.' });
+      this.skip = null;
+      this.sim = createSim({ seed: this.sim.seed, saved: this.backup });
+      this.replace(this.sim);
+      this.backup = null;
+      this.acc = 0;
+      this.save();
+      this.sim.events();
+      const view = this.sim.view();
+      this.known = new Set(view.entities.map((e) => e.id));
+      this.seen = {};
+      this.emit({ t: 'view', view });
+      this.sendDev();
+      this.emit({ t: 'note', level: 'info', text: 'Back to before the last fast-forward.' });
+      return;
+    }
     if (msg.t === 'speed' && this.sim) {
       this.sim.command({ t: 'speed', speed: msg.speed });
       if (msg.speed === 0) this.save();
@@ -181,7 +217,16 @@ class MockSocket implements SocketLike {
     const now = performance.now();
     const real = Math.min(1000, now - this.last);
     this.last = now;
-    this.acc += real * sim.speed;
+    if (this.skip) {
+      const until = performance.now() + 50;
+      do {
+        const dt = Math.min(GAME_HOUR_MS, this.skip.left);
+        sim.step(dt);
+        this.skip.left -= dt;
+      } while (this.skip.left > 0 && performance.now() < until);
+      if (this.skip.left <= 0) this.finishSkip();
+    }
+    this.acc += this.skip ? 0 : real * sim.speed;
     let steps = 0;
     while (this.acc >= SIM_STEP_MS && steps < 40) {
       sim.step(SIM_STEP_MS);
@@ -192,6 +237,7 @@ class MockSocket implements SocketLike {
     if (this.sinceView >= 190) {
       this.sinceView = 0;
       this.update();
+      if (this.skip) this.sendDev();
     }
     this.sheetAt += real;
     if (this.sheetAt >= 1000) this.sendSheet();
@@ -199,6 +245,24 @@ class MockSocket implements SocketLike {
     if (this.sinceSave >= 5000) {
       this.sinceSave = 0;
       this.save();
+    }
+  }
+
+  private sendDev(): void {
+    const skip = this.skip ? { left: Math.round((Math.max(0, this.skip.left) / GAME_DAY_MS) * 10) / 10, total: Math.round((this.skip.total / GAME_DAY_MS) * 10) / 10 } : null;
+    this.emit({ t: 'dev', skip, undo: this.backup !== null });
+  }
+
+  private finishSkip(): void {
+    const skip = this.skip;
+    this.skip = null;
+    this.acc = 0;
+    this.save();
+    this.update();
+    this.sendDev();
+    if (skip) {
+      const days = Math.round(((skip.total - Math.max(0, skip.left)) / GAME_DAY_MS) * 10) / 10;
+      this.emit({ t: 'note', level: 'info', text: skip.left <= 0 ? `Fast-forwarded ${days} days.` : `Fast-forward stopped after ${days} days.` });
     }
   }
 

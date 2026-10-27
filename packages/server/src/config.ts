@@ -35,6 +35,11 @@ export interface Config {
    * simulated while a client is connected, and its snapshot is saved on disconnect.
    */
   awayCapHours: number;
+  /**
+   * Dev tools for whoever is logged in: fast-forward the village, undo it (DEV_MODE=1). On by default outside production, off in
+   * production: they change a real village, so a deployed server has to be told.
+   */
+  devMode: boolean;
 }
 
 type Env = Record<string, string | undefined>;
@@ -78,6 +83,7 @@ export function loadConfig(env: Env = process.env, overrides: Partial<Config> = 
       .filter(Boolean),
     autosaveMs: int(env, 'AUTOSAVE_MS', 30000, 100, 3600000),
     awayCapHours: int(env, 'AWAY_CAP_HOURS', 8, 0, 24 * 14),
+    devMode: bool(env, 'DEV_MODE', !isProd),
   };
   return { ...cfg, ...overrides };
 }

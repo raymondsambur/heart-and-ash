@@ -37,6 +37,16 @@ export class GameSession {
     this.send({ t: 'speed', speed });
   }
 
+  /** Dev mode: run the village this many game days ahead (0 stops a skip in progress). */
+  devSkip(days: number): void {
+    this.send({ t: 'dev_skip', days });
+  }
+
+  /** Dev mode: put the village back as it was before the last skip. */
+  devUndo(): void {
+    this.send({ t: 'dev_undo' });
+  }
+
   /** Select a villager (or nobody): highlights them in the world and asks the server for their sheet. */
   select(id: number | null): void {
     const { store, view } = this.o;
@@ -100,7 +110,9 @@ export class GameSession {
     const { store, socket, view, hooks } = this.o;
 
     this.offs.push(
-      socket.on('welcome', (m) => store.patch({ village: m.village })),
+      socket.on('welcome', (m) => store.patch({ village: m.village, dev: m.dev === true })),
+
+      socket.on('dev', (m) => store.patch({ devSkip: m.skip, devUndo: m.undo })),
 
       socket.on('view', (m) => {
         // A (re)connect brings the whole village again: replace what the renderer knows.

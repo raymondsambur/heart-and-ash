@@ -5,7 +5,7 @@
  * The compile-time check at the bottom guarantees the schema output is assignable to `C2S`,
  * so adding a message to protocol.ts without a schema (or with a wrong one) fails type checking.
  */
-import { BUILD_KINDS, JOB_GROUPS, RULE_METRICS, type C2S } from '@hearth/shared';
+import { BUILD_KINDS, JOB_GROUPS, MAX_SKIP_DAYS, RULE_METRICS, type C2S } from '@hearth/shared';
 import { z } from 'zod';
 
 /** Largest accepted text message in bytes (checked by the gateway before parsing). */
@@ -40,6 +40,8 @@ export const c2sSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('answer'), offer: int(0, 2 ** 31 - 1), option: z.string().min(1).max(32) }),
   z.object({ t: z.literal('read'), report: int(0, 2 ** 31 - 1) }),
   z.object({ t: z.literal('ration'), level: z.union([z.literal(0), z.literal(1), z.literal(2)]) }),
+  z.object({ t: z.literal('dev_skip'), days: int(0, MAX_SKIP_DAYS) }),
+  z.object({ t: z.literal('dev_undo') }),
   z.object({ t: z.literal('ping'), n: int(0, 2 ** 31 - 1) }),
 ]);
 
