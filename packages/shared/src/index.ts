@@ -17,3 +17,4 @@ export * from './data/ambitions';
 export * from './data/blueprints';
 export * from './data/balance';
 export * from './data/policy';
+export * from './data/placement';
