@@ -15,7 +15,7 @@ export const DYN_PLOT_SITE = 150000;
 export const DYN_ORDER_SITE = 200000;
 
 /** What a finished building offers people. */
-const BUILDING_SITE: Partial<Record<BuildingDef['kind'], PlaceKind>> = { house: 'home', warehouse: 'store', shrine: 'shrine', well: 'water' };
+const BUILDING_SITE: Partial<Record<BuildingDef['kind'], PlaceKind>> = { house: 'home', warehouse: 'store', shrine: 'shrine', well: 'water', watchpost: 'post', gateway: 'post' };
 
 export class SiteIndex {
   /** The sites people can use right now: the map and the starting village, plus what has been built since. */

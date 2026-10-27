@@ -8,6 +8,7 @@ import type { Ctx } from './ctx';
 import { HOUR, MIN } from './ctx';
 import { pushFeed } from './feed';
 import { candidates, goalKeyOf, pickCompany, rank } from './goals';
+import { dutySite } from './duty';
 import { die } from './life';
 import { advanceMove, dist, faceOf, isMoving, spotNear, stop, walkTo } from './move';
 import { grassNear, nearestObject, standingTile, type Tile } from './flora';
@@ -311,6 +312,9 @@ function resolveSite(c: Ctx, p: Person, step: Step): boolean {
       }
       case 'buildsite':
         site = c.sites.ofKind('buildsite').find((s) => s.order === step.order);
+        break;
+      case 'plaza':
+        site = (step.a === 'stand_watch' || step.a === 'patrol' ? dutySite(c, p, step) : undefined) ?? c.sites.nearest(step.at, p.x, p.y, known) ?? undefined;
         break;
       default:
         site = c.sites.nearest(step.at, p.x, p.y, known) ?? undefined;

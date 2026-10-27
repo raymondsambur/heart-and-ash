@@ -37,6 +37,7 @@ const GROUP_OF: Record<string, JobGroup> = {
   demolish: 'building',
   rubble: 'building',
   watch: 'defence',
+  patrol: 'defence',
   herbs: 'care',
   funeral: 'care',
   cloth: 'crafts',
