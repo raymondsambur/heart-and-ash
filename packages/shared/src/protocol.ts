@@ -308,12 +308,19 @@ export type C2S =
   | { t: 'answer'; offer: number; option: string }
   /** Mark a report as read. */
   | { t: 'read'; report: number }
+  /** Dev mode only: run the village this many game days ahead as fast as the server can (0 stops a skip in progress). */
+  | { t: 'dev_skip'; days: number }
+  /** Dev mode only: put the village back as it was before the last skip. */
+  | { t: 'dev_undo' }
   | { t: 'ping'; n: number };
 
 export type NoteLevel = 'info' | 'good' | 'warn' | 'bad';
 
 export type S2C =
-  | { t: 'welcome'; v: number; user: { id: number; username: string }; village: VillageBrief }
+  /** `dev` is set when the server runs in dev mode (the dev tools are offered). */
+  | { t: 'welcome'; v: number; user: { id: number; username: string }; village: VillageBrief; dev?: boolean }
+  /** Dev mode: how far a skip has got (game days left and in all, null when none runs) and whether the last skip can be undone. */
+  | { t: 'dev'; skip: { left: number; total: number } | null; undo: boolean }
   /** The whole village, sent right after `welcome`. */
   | { t: 'view'; view: VillageView }
   /**

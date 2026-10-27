@@ -45,6 +45,10 @@ export interface State {
   conn: ConnInfo;
   /** Round-trip time to the server in ms, or null before the first answer. */
   latency: number | null;
+  /** Dev mode: the server offers the dev tools, a fast-forward in progress (game days left and in all) and whether it can be undone. */
+  dev: boolean;
+  devSkip: { left: number; total: number } | null;
+  devUndo: boolean;
 }
 
 export type StateKey = keyof State;
@@ -74,6 +78,9 @@ export function initialState(): State {
     focus: null,
     conn: { state: 'idle', attempt: 0 },
     latency: null,
+    dev: false,
+    devSkip: null,
+    devUndo: false,
   };
 }
 

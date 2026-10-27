@@ -56,6 +56,17 @@ export const en: Record<string, string> = {
   'time.speed4': 'Four times as fast',
   'time.hint': 'Space pauses. 1, 2 and 3 pick the speed.',
 
+  // ---- dev tools (dev mode only) ------------------------------------------
+  'dev.toggle': 'Dev tools',
+  'dev.title': 'Dev tools',
+  'dev.skip': 'Fast-forward',
+  'dev.days': 'Game days',
+  'dev.go': 'Go',
+  'dev.stop': 'Stop',
+  'dev.undo': 'Undo last skip',
+  'dev.progress': '{done} of {total} days',
+  'dev.hint': 'The village lives on its rules; decisions are settled by their fallbacks. The village as it was is kept so the skip can be undone.',
+
   // ---- village card -------------------------------------------------------
   'village.card': 'Your village',
   'village.population': '{n} villagers',

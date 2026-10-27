@@ -140,6 +140,23 @@ describe('GameSession', () => {
     expect(store.get('speed')).toBe(1);
   });
 
+  it('offers the dev tools only when the server says it is in dev mode, and follows a fast-forward', () => {
+    const { store, ws, session } = setup();
+    ws.receive({ t: 'welcome', v: 1, user: { id: 1, username: 'a' }, village: { name: 'Jade Ford', seed: 9 } });
+    expect(store.get('dev')).toBe(false);
+    ws.receive({ t: 'welcome', v: 1, user: { id: 1, username: 'a' }, village: { name: 'Jade Ford', seed: 9 }, dev: true });
+    expect(store.get('dev')).toBe(true);
+    session.devSkip(50);
+    expect(ws.sent.at(-1)).toEqual({ t: 'dev_skip', days: 50 });
+    ws.receive({ t: 'dev', skip: { left: 30, total: 50 }, undo: true });
+    expect(store.get('devSkip')).toEqual({ left: 30, total: 50 });
+    expect(store.get('devUndo')).toBe(true);
+    session.devUndo();
+    expect(ws.sent.at(-1)).toEqual({ t: 'dev_undo' });
+    ws.receive({ t: 'dev', skip: null, undo: false });
+    expect(store.get('devSkip')).toBeNull();
+  });
+
   it('sends priorities, rules, answers and reads, and shows the policy and reports the server sends', () => {
     const { store, ws, session } = setup();
     session.setPriority('wood', 4);

@@ -9,6 +9,8 @@
 import {
   CLOSE_BAD_PROTOCOL,
   CLOSE_REPLACED,
+  GAME_DAY_MS,
+  GAME_HOUR_MS,
   MAP_SIZE,
   PROTOCOL_VERSION,
   SIM_STEP_MS,
@@ -35,6 +37,8 @@ import type { Logger } from './log';
 const MAX_STEPS_PER_TICK = 40;
 /** A connection that has not said hello within this long is closed. */
 const HELLO_TIMEOUT_MS = 5000;
+/** Dev mode: real ms of each tick given to a fast-forward (the rest of the 100 ms is left for sockets and saves). */
+const SKIP_BUDGET_MS = 80;
 /** How often a watched villager's sheet is sent, and the villager list at most. */
 const SHEET_EVERY_MS = 1000;
 const ROSTER_EVERY_MS = 2000;
@@ -71,6 +75,8 @@ interface Running {
   rosterAt: number;
   /** Real time (ms) the manager's away stretch ends at, or 0 while a client is connected. */
   awayUntil: number;
+  /** Dev mode: a fast-forward in progress, in game ms. */
+  skip: { left: number; total: number } | null;
 }
 
 /** Handle the gateway keeps for one websocket. */
@@ -140,6 +146,7 @@ export class VillageHost {
         sheetAt: 0,
         rosterAt: 0,
         awayUntil: this.now() + this.config.awayCapHours * 3_600_000,
+        skip: null,
       };
       this.running.set(row.user_id, r);
       this.log.info(`village ${village.id} keeps living on its own after a restart`);
@@ -298,6 +305,16 @@ export class VillageHost {
         this.sendUpdate(r);
         return;
       }
+      case 'dev_skip':
+      case 'dev_undo': {
+        if (!a.ready) return void a.conn.send({ t: 'err', code: 'no_hello', text: 'Say hello first.' });
+        if (!this.config.devMode) return void a.conn.send({ t: 'err', code: 'dev_off', text: 'Dev mode is off on this server.' });
+        const r = this.running.get(a.user.id);
+        if (!r) return;
+        if (msg.t === 'dev_skip') this.devSkip(r, msg.days);
+        else this.devUndo(r);
+        return;
+      }
       case 'speed': {
         if (!a.ready) return void a.conn.send({ t: 'err', code: 'no_hello', text: 'Say hello first.' });
         const r = this.running.get(a.user.id);
@@ -340,6 +357,7 @@ export class VillageHost {
       sheetAt: 0,
       rosterAt: 0,
       awayUntil: 0,
+      skip: null,
     };
     // The manager is back: the village writes its "while you were away" report (a save that was left away is treated the same way).
     if (sim.view().policy.away) {
@@ -348,11 +366,12 @@ export class VillageHost {
     }
     this.running.set(a.user.id, r);
     a.ready = true;
-    a.conn.send({ t: 'welcome', v: PROTOCOL_VERSION, user: { id: a.user.id, username: a.user.username }, village: { name: village.name, seed: village.seed } });
+    a.conn.send({ t: 'welcome', v: PROTOCOL_VERSION, user: { id: a.user.id, username: a.user.username }, village: { name: village.name, seed: village.seed }, ...(this.config.devMode ? { dev: true } : {}) });
     sim.events();
     const view = sim.view();
     this.remember(r, view);
     a.conn.send({ t: 'view', view });
+    this.sendDev(r);
     this.log.info(`${a.user.username} entered ${village.name}${kept ? ' (it kept living while they were away)' : ''}`);
   }
 
@@ -393,7 +412,8 @@ export class VillageHost {
       this.running.delete(r.village.userId);
       return;
     }
-    const speed = r.conn ? r.sim.speed : Math.min(r.sim.speed, 1);
+    if (r.skip) this.runSkip(r);
+    const speed = r.skip ? 0 : r.conn ? r.sim.speed : Math.min(r.sim.speed, 1);
     if (speed > 0) {
       r.acc += real * speed;
       let steps = 0;
@@ -409,9 +429,96 @@ export class VillageHost {
     if (r.sinceView >= 1000 / VIEW_HZ - TICK_MS / 2) {
       r.sinceView = 0;
       this.sendUpdate(r);
+      if (r.skip) this.sendDev(r);
       if (r.watch !== null && t - r.sheetAt >= SHEET_EVERY_MS) this.sendSheet(r, t);
     }
     if (r.dirty && t - r.lastSaveAt >= this.config.autosaveMs) this.save(r, 'autosave');
+  }
+
+  // ---- dev mode ------------------------------------------------------------------------------------
+
+  private backupKey(r: Running): string {
+    return `village.${r.village.id}.dev.backup`;
+  }
+
+  /**
+   * Fast-forward: the village is run `days` game days ahead, a slice of each tick at a time, so the server (and the page) stay
+   * alive and the client sees the progress. The village as it was is kept once, so the skip can be undone. 0 stops a skip.
+   */
+  private devSkip(r: Running, days: number): void {
+    if (days <= 0) {
+      if (r.skip) this.finishSkip(r, 'stopped');
+      return;
+    }
+    const ms = days * GAME_DAY_MS;
+    if (r.skip) {
+      r.skip.left += ms;
+      r.skip.total += ms;
+    } else {
+      this.db.kvSet(this.backupKey(r), JSON.stringify(r.sim.serialize()));
+      r.skip = { left: ms, total: ms };
+      this.log.info(`village ${r.village.id}: dev skip of ${days} days`);
+    }
+    r.acc = 0;
+    this.sendDev(r);
+  }
+
+  /** A slice of the fast-forward: whole game hours until the tick's budget is spent. */
+  private runSkip(r: Running): void {
+    const skip = r.skip;
+    if (!skip) return;
+    const until = performance.now() + SKIP_BUDGET_MS;
+    do {
+      const dt = Math.min(GAME_HOUR_MS, skip.left);
+      r.sim.step(dt);
+      skip.left -= dt;
+    } while (skip.left > 0 && performance.now() < until);
+    r.dirty = true;
+    if (skip.left <= 0) this.finishSkip(r, 'done');
+  }
+
+  private finishSkip(r: Running, how: 'done' | 'stopped'): void {
+    const skip = r.skip;
+    r.skip = null;
+    r.acc = 0;
+    this.save(r, 'dev skip');
+    this.sendUpdate(r);
+    this.sendDev(r);
+    if (skip && r.conn?.open) {
+      const days = Math.round(((skip.total - Math.max(0, skip.left)) / GAME_DAY_MS) * 10) / 10;
+      r.conn.send({ t: 'note', level: 'info', text: how === 'done' ? `Fast-forwarded ${days} days.` : `Fast-forward stopped after ${days} days.` });
+    }
+  }
+
+  /** Put the village back as it was before the last skip. */
+  private devUndo(r: Running): void {
+    const raw = this.db.kvGet(this.backupKey(r));
+    if (!raw) return void r.conn?.send({ t: 'err', code: 'no_backup', text: 'There is no skip to undo.' });
+    let saved: SimSnapshot;
+    try {
+      saved = JSON.parse(raw) as SimSnapshot;
+      r.sim = createSim({ seed: r.village.seed, saved });
+    } catch (err) {
+      this.log.error(`village ${r.village.id}: could not restore the dev backup`, err);
+      return void r.conn?.send({ t: 'err', code: 'bad_backup', text: 'The backup could not be restored.' });
+    }
+    this.db.kvDelete(this.backupKey(r));
+    r.skip = null;
+    r.acc = 0;
+    r.watch = null;
+    this.save(r, 'dev undo');
+    r.sim.events();
+    const view = r.sim.view();
+    this.remember(r, view);
+    r.conn?.send({ t: 'view', view });
+    this.sendDev(r);
+    r.conn?.send({ t: 'note', level: 'info', text: 'Back to before the last fast-forward.' });
+  }
+
+  private sendDev(r: Running): void {
+    if (!this.config.devMode || !r.conn?.open) return;
+    const skip = r.skip ? { left: Math.round((Math.max(0, r.skip.left) / GAME_DAY_MS) * 10) / 10, total: Math.round((r.skip.total / GAME_DAY_MS) * 10) / 10 } : null;
+    r.conn.send({ t: 'dev', skip, undo: this.db.kvGet(this.backupKey(r)) !== undefined });
   }
 
   // ---- views ---------------------------------------------------------------------------------------
