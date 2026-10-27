@@ -9,31 +9,42 @@ import type { Site } from './types';
 /** Blight above this makes a place too dangerous to work at. */
 const BLIGHT_LIMIT = 60;
 
+/** Site ids of what the village builds for itself (M2) start here, so they never collide with the ids of the map and the starting buildings. */
+export const DYN_BUILDING_SITE = 100000;
+export const DYN_PLOT_SITE = 150000;
+export const DYN_ORDER_SITE = 200000;
+
+/** What a finished building offers people. */
+const BUILDING_SITE: Partial<Record<BuildingDef['kind'], PlaceKind>> = { house: 'home', warehouse: 'store', shrine: 'shrine', well: 'water' };
+
 export class SiteIndex {
-  readonly sites: Site[] = [];
-  private readonly byKind = new Map<PlaceKind, Site[]>();
+  /** The sites people can use right now: the map and the starting village, plus what has been built since. */
+  sites: Site[] = [];
+  private byKind = new Map<PlaceKind, Site[]>();
+  private byId = new Map<number, Site>();
+  /** The sites of the map and the starting village, in the order that fixes their ids (never reordered). */
+  private fixed: Site[] = [];
 
   constructor(
     readonly world: WorldData,
     buildings: BuildingDef[],
     plots: PlotDef[],
+    orders: readonly { id: number; door: Point }[] = [],
   ) {
     const w = world;
     const { center, well } = w.start;
     const add = (kind: PlaceKind, x: number, y: number, extra: Partial<Site> = {}): void => {
-      const s: Site = { id: this.sites.length, kind, x, y, ...extra };
-      this.sites.push(s);
-      const list = this.byKind.get(kind);
-      if (list) list.push(s);
-      else this.byKind.set(kind, [s]);
+      const s: Site = { id: this.fixed.length, kind, x, y, ...extra };
+      this.fixed.push(s);
     };
 
-    for (const b of buildings) {
+    // The ids of the first sites follow the starting village, so a saved person's list of known places stays valid.
+    for (const b of w.start.buildings) {
       if (b.kind === 'house') add('home', b.door.x, b.door.y, { building: b.id });
       else if (b.kind === 'warehouse') add('store', b.door.x, b.door.y, { building: b.id });
       else if (b.kind === 'shrine') add('shrine', b.door.x, b.door.y, { building: b.id });
     }
-    for (const p of plots) add('field', p.x + (p.w >> 1), p.y + (p.d >> 1), { plot: p.id });
+    for (const p of w.start.plots) add('field', p.x + (p.w >> 1), p.y + (p.d >> 1), { plot: p.id });
     // The well is an object on the map; people stand on the plaza tile south of it.
     if (w.objects[well.y * w.w + well.x] === O.Well) add('water', well.x, well.y + 1);
     add('plaza', center.x - 2, center.y + 1);
@@ -82,6 +93,49 @@ export class SiteIndex {
         break;
       }
     }
+    this.sync(buildings, plots, orders);
+  }
+
+  /**
+   * Bring the usable sites in line with what stands now: a starting building or field that is gone, or being raised or taken
+   * down, offers nothing; a building the village has finished offers what its kind does; every order has a work site.
+   */
+  sync(buildings: readonly BuildingDef[], plots: readonly PlotDef[], orders: readonly { id: number; door: Point }[]): void {
+    const live = new Map(buildings.map((b) => [b.id, b]));
+    const livePlots = new Map(plots.map((p) => [p.id, p]));
+    const list: Site[] = [];
+    for (const s of this.fixed) {
+      let on = true;
+      if (s.building !== undefined) {
+        const b = live.get(s.building);
+        on = !!b && !b.con;
+      } else if (s.kind === 'field' && s.plot !== undefined) {
+        const p = livePlots.get(s.plot);
+        on = !!p && !p.con;
+      }
+      if (on) list.push(s);
+    }
+    const startIds = new Set(this.world.start.buildings.map((b) => b.id));
+    const startPlots = new Set(this.world.start.plots.map((p) => p.id));
+    for (const b of buildings) {
+      if (startIds.has(b.id) || b.con) continue;
+      const kind = BUILDING_SITE[b.kind];
+      if (kind) list.push({ id: DYN_BUILDING_SITE + b.id, kind, x: b.door.x, y: b.door.y, building: b.id });
+    }
+    for (const p of plots) {
+      if (startPlots.has(p.id) || p.con) continue;
+      list.push({ id: DYN_PLOT_SITE + p.id, kind: 'field', x: p.x + (p.w >> 1), y: p.y + (p.d >> 1), plot: p.id });
+    }
+    for (const o of orders) list.push({ id: DYN_ORDER_SITE + o.id, kind: 'buildsite', x: o.door.x, y: o.door.y, order: o.id });
+    this.sites = list;
+    this.byKind = new Map();
+    this.byId = new Map();
+    for (const s of list) {
+      this.byId.set(s.id, s);
+      const k = this.byKind.get(s.kind);
+      if (k) k.push(s);
+      else this.byKind.set(s.kind, [s]);
+    }
   }
 
   ofKind(kind: PlaceKind): readonly Site[] {
@@ -89,8 +143,9 @@ export class SiteIndex {
     return this.byKind.get(kind) ?? [];
   }
 
+  /** A usable site by id (undefined for one that is gone). */
   get(id: number): Site | undefined {
-    return this.sites[id];
+    return this.byId.get(id);
   }
 
   /** Nearest site of a kind among the ones `known` (all of them when `known` is null), by straight distance. */

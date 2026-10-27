@@ -31,7 +31,7 @@ export interface AmbitionDef {
 const d = (id: AmbitionKind, label: string, desc: string, weight: number, likes: AmbitionDef['likes'], o: Partial<AmbitionDef> = {}): AmbitionDef => ({ id, label, desc, weight, likes, minAge: o.minAge ?? 14, needsConstruction: o.needsConstruction, skills: o.skills });
 
 export const AMBITIONS: Record<AmbitionKind, AmbitionDef> = {
-  own_house: d('own_house', 'Own a house', 'Wants a house of their own.', 1.2, { ambitious: 1, hardworking: 0.5 }, { needsConstruction: true, minAge: 16 }),
+  own_house: d('own_house', 'Own a house', 'Wants a house of their own.', 1.2, { ambitious: 1, hardworking: 0.5 }, { minAge: 16 }),
   marry: d('marry', 'Marry', 'Hopes to marry.', 1.6, { romantic: 1.2, gregarious: 0.5 }, { minAge: 16 }),
   raise_children: d('raise_children', 'Raise children', 'Wants a family and children.', 1, { kind: 0.6, romantic: 0.6, content: 0.4 }, { minAge: 18 }),
   open_stall: d('open_stall', 'Open a stall', 'Dreams of a stall at the plaza.', 1, { ambitious: 0.8, greedy: 0.6, gregarious: 0.5 }, { skills: ['trading', 'cooking', 'crafting'], minAge: 16 }),
@@ -43,9 +43,9 @@ export const AMBITIONS: Record<AmbitionKind, AmbitionDef> = {
   take_revenge: d('take_revenge', 'Take revenge', 'Cannot forget a wrong done to them.', 0.4, { 'hot-tempered': 1, cruel: 0.6, proud: 0.5 }, { minAge: 16 }),
   win_honour: d('win_honour', 'Win honour', 'Wants to win honour in a duel.', 0.7, { proud: 1, 'hot-tempered': 0.6, brave: 0.6 }, { skills: ['fighting'], minAge: 16 }),
   heal_sick: d('heal_sick', 'Heal the sick', 'Wants to tend the ill and heal them.', 0.8, { kind: 0.9, devout: 0.5 }, { skills: ['healing'], minAge: 16 }),
-  build_shrine: d('build_shrine', 'Build something great', 'Dreams of raising a great shrine.', 0.5, { devout: 1, ambitious: 0.6 }, { needsConstruction: true, minAge: 20 }),
+  build_shrine: d('build_shrine', 'Build something great', 'Dreams of raising a great shrine.', 0.5, { devout: 1, ambitious: 0.6 }, { minAge: 20 }),
   reconcile: d('reconcile', 'Make peace', 'Wants to make peace with {who}.', 0.5, { kind: 0.7, calm: 0.6, humble: 0.6 }, { minAge: 16 }),
-  be_left_alone: d('be_left_alone', 'Be left alone', 'Wants to be left alone, away from the crowd.', 0.5, { solitary: 1.2 }, { needsConstruction: true, minAge: 16 }),
+  be_left_alone: d('be_left_alone', 'Be left alone', 'Wants to be left alone, away from the crowd.', 0.5, { solitary: 1.2 }, { minAge: 16 }),
   court_person: d('court_person', 'Win a heart', 'Has set their heart on {who}.', 0.9, { romantic: 1.2 }, { minAge: 16 }),
   find_kin: d('find_kin', 'Find lost kin', 'Wants to find family they lost.', 0.4, { loyal: 0.5, curious: 0.4 }, { minAge: 16 }),
   perfect_recipe: d('perfect_recipe', 'Perfect a recipe', 'Wants to perfect a dish.', 0.7, { content: 0.4, generous: 0.5, curious: 0.3 }, { skills: ['cooking'], minAge: 16 }),

@@ -105,9 +105,29 @@ export type BuildingKind =
   | 'yard'
   | 'dormitory'
   | 'pavilion'
-  | 'sectGate';
+  | 'sectGate'
+  /** M2: the kinds a village can build for itself (the others are drawn by the art for later milestones). */
+  | 'workshop'
+  | 'watchpost'
+  | 'well'
+  | 'wall';
 
-/** A building as the sim reports it (M0: finished buildings only). */
+/**
+ * Construction state of a building or a plot, as the client draws it. `done` counts finished stages (of the blueprint's
+ * stage list); `pct` is the progress of the stage being worked on, 0..100. While demolishing, `done` counts the stages still
+ * standing and `pct` how far the next one is taken down; `rubble` is what is left until it is cleared.
+ */
+export interface ConView {
+  mode: 'build' | 'demolish' | 'rubble';
+  done: number;
+  pct: number;
+  /** The order behind it. */
+  order: number;
+  /** Material delivered to the site and not yet built in, by good (whole numbers). */
+  pile?: Record<string, number>;
+}
+
+/** A building as the sim reports it: finished, or under construction or demolition (`con`). */
 export interface BuildingDef {
   id: number;
   kind: BuildingKind;
@@ -117,6 +137,7 @@ export interface BuildingDef {
   d: number;
   /** Tile where people go in and out (in front of the door). */
   door: { x: number; y: number };
+  con?: ConView;
 }
 
 /** A designated rectangle of ground: a field being worked, later any plot for a building order. */
@@ -129,6 +150,7 @@ export interface PlotDef {
   y: number;
   w: number;
   d: number;
+  con?: ConView;
 }
 
 /** The static part of the map: identical on every boot for a given seed. */

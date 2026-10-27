@@ -12,7 +12,7 @@ import type { NeedId } from './needs';
 import type { SkillId } from './skills';
 
 /** Where an action happens. `water` is the well or the stream, `person` is next to another villager, `here` is anywhere. */
-export type PlaceKind = 'here' | 'home' | 'store' | 'field' | 'water' | 'stream' | 'forest' | 'quarry' | 'meadow' | 'plaza' | 'shrine' | 'edge' | 'person';
+export type PlaceKind = 'here' | 'home' | 'store' | 'field' | 'water' | 'stream' | 'forest' | 'quarry' | 'meadow' | 'plaza' | 'shrine' | 'edge' | 'person' | 'buildsite';
 
 export type ActionGroup = 'survival' | 'food' | 'crafting' | 'care' | 'social' | 'conflict' | 'duty' | 'life' | 'construction';
 export type ActionTag = 'work' | 'leisure' | 'social' | 'risky' | 'crime' | 'violent' | 'faith' | 'care' | 'romance' | 'learn' | 'rest';
@@ -75,6 +75,7 @@ a('plant', 'planting the field', 'food', 'field', 180, { skill: 'farming', seaso
 a('tend_crops', 'tending the crops', 'food', 'field', 90, { skill: 'farming', seasons: [0, 1, 2], tags: ['work'], plan: { field: 'growing' } });
 a('harvest', 'harvesting', 'food', 'field', 120, { skill: 'farming', tags: ['work'], plan: { field: 'ripe', holds: 'empty', gives: 'ration' } });
 a('forage', 'foraging', 'food', 'meadow', 180, { skill: 'foraging', seasons: [0, 1, 2], tags: ['work'], plan: { holds: 'empty', gives: 'ration' } });
+a('cut_thatch', 'cutting thatch', 'food', 'meadow', 150, { skill: 'foraging', seasons: [0, 1, 2], tags: ['work'], plan: { holds: 'empty', gives: 'thatch' } });
 a('gather_herbs', 'gathering herbs', 'food', 'meadow', 150, { skill: 'foraging', seasons: [0, 1, 2], tags: ['work'], plan: { holds: 'empty', gives: 'herb' } });
 a('hunt', 'hunting', 'food', 'forest', 240, { skill: 'hunting', tags: ['work', 'risky'], plan: { holds: 'empty', tool: true, gives: 'ration' } });
 a('fish', 'fishing', 'food', 'stream', 180, { skill: 'foraging', tags: ['work'], plan: { holds: 'empty', gives: 'ration' } });
@@ -147,10 +148,12 @@ a('recover', 'recovering', 'life', 'here', 0);
 a('die', 'dying', 'life', 'here', 0);
 
 // ---- construction (stubs for M2: present, inactive) ----------------------------------------------------------------------
-a('build', 'building', 'construction', 'here', 60, { skill: 'building', tags: ['work'], active: false });
-a('demolish', 'pulling a building down', 'construction', 'here', 60, { skill: 'building', tags: ['work'], active: false });
-a('clear_rubble', 'clearing rubble', 'construction', 'here', 60, { tags: ['work'], active: false });
-a('fetch_material', 'fetching building material', 'construction', 'here', 0, { tags: ['work'], active: false });
+// M2: work on an order (a plot someone is raising or pulling down). The goal names the order; `deliver_material` is found by the
+// planner (fetch the good from the store, then bring it to the plot), the three others are the target of a job.
+a('build', 'building', 'construction', 'buildsite', 30, { skill: 'building', tags: ['work'] });
+a('demolish', 'pulling a building down', 'construction', 'buildsite', 30, { skill: 'building', tags: ['work'] });
+a('clear_rubble', 'clearing rubble', 'construction', 'buildsite', 30, { tags: ['work'] });
+a('deliver_material', 'bringing building material', 'construction', 'buildsite', 5, { tags: ['work'], plan: { holds: 'any', gives: 'empty' } });
 
 export const ACTION_LIST: readonly ActionDef[] = rows;
 export const ACTIONS: Record<string, ActionDef> = Object.fromEntries(rows.map((r) => [r.id, r]));

@@ -6,7 +6,8 @@ import { O, T, type BuildingKind } from '@hearth/shared';
 import { VARIANTS, genObject } from '../art/flora';
 import { genMountainTile, type RockSource } from '../art/mountain';
 import { genWallTile, genBridgeRails, genFenceTile, genPalisadeTile } from '../art/walls';
-import { genBuilding, type BuildingArt, type BuildingSpec } from '../art/buildings';
+import { genBuilding, genConstruction, genPlotMarks, type BuildingArt, type BuildingSpec } from '../art/buildings';
+import { conKey, progressOf } from '../art/construction';
 import { genCharacter, type CharSpec } from '../art/character';
 import { gearKey } from '../art/gear';
 import { genBeast, type BeastSpec } from '../art/beasts';
@@ -81,6 +82,7 @@ export class SpriteBank {
   private rails = new Map<number, Sprite>();
   private fences = new Map<string, Sprite>();
   private buildings = new LRU<string, BuildingSprite>(160);
+  private conKeys = new Map<number, string>();
   /** West facings are drawn as cached mirrors of the east ones (generation is the expensive part). */
   private chars = new LRU<string, { spr: FlashSprite; mir: FlashSprite | null }>(6000);
   private beasts = new LRU<string, { spr: FlashSprite; mir: FlashSprite | null }>(2000);
@@ -200,9 +202,13 @@ export class SpriteBank {
 
   getBuilding(info: BuildingInfo, ctrl: string | null, fallen: boolean): BuildingSprite {
     const b = info.def;
-    const key = `${b.id}|${this.season}|${ctrl ?? '-'}|${fallen ? 1 : 0}`;
+    const key = `${b.id}|${this.season}|${ctrl ?? '-'}|${fallen ? 1 : 0}|${b.kind === 'yard' ? 'p' : conKey(b.con)}`;
     let s = this.buildings.get(key);
     if (!s) {
+      // a building passes through a few dozen states while it goes up: only the latest is kept
+      const last = this.conKeys.get(b.id);
+      if (last !== undefined && last !== key) this.buildings.delete(last);
+      this.conKeys.set(b.id, key);
       const spec: BuildingSpec = {
         id: b.id,
         kind: b.kind as BuildingKind,
@@ -214,7 +220,7 @@ export class SpriteBank {
         accentCss: ctrl ? factionColor(ctrl) : null,
         fallen,
       };
-      const art: BuildingArt = genBuilding(spec);
+      const art: BuildingArt = b.kind === 'yard' && b.con ? genPlotMarks(spec) : b.con ? genConstruction(spec, progressOf(b.kind, b.con)) : genBuilding(spec);
       const spr = makeSprite(art.pb, art.ox, art.oy, art.glow, true);
       s = { spr, ox: art.ox, oy: art.oy, lights: art.lights, smoke: art.smoke };
       this.buildings.set(key, s);

@@ -112,6 +112,7 @@ class MockSocket implements SocketLike {
   private watch: number | null = null;
   private sheetAt = 0;
   private rosterJson = '';
+  private ordersJson = '';
   private rosterAt = 0;
   private sim: Sim | null = null;
 
@@ -139,6 +140,7 @@ class MockSocket implements SocketLike {
       this.known = new Set(view.entities.map((e) => e.id));
       this.sim.events();
       this.rosterJson = JSON.stringify(view.roster);
+      this.ordersJson = JSON.stringify({ o: view.orders, w: view.wishes });
       this.emit({ t: 'welcome', v: PROTOCOL_VERSION, user: { id: 1, username: 'mock' }, village: { name: this.sim.serialize().villageName, seed: this.sim.seed } });
       this.emit({ t: 'view', view });
       this.last = performance.now();
@@ -148,6 +150,13 @@ class MockSocket implements SocketLike {
     if (msg.t === 'inspect' && this.sim) {
       this.watch = msg.id;
       this.sendSheet();
+      return;
+    }
+    if ((msg.t === 'build' || msg.t === 'demolish' || msg.t === 'cancel') && this.sim) {
+      const res = this.sim.command(msg.t === 'build' ? { t: 'build', kind: msg.kind, x: msg.x, y: msg.y, rot: msg.rot } : msg.t === 'demolish' ? { t: 'demolish', building: msg.building, plot: msg.plot } : { t: 'cancel', order: msg.order });
+      if (!res.ok) this.emit({ t: 'err', code: res.code, text: res.text });
+      else if (res.text) this.emit({ t: 'note', level: 'good', text: res.text });
+      this.update();
       return;
     }
     if (msg.t === 'speed' && this.sim) {
@@ -199,7 +208,10 @@ class MockSocket implements SocketLike {
       this.rosterJson = ro;
       this.rosterAt = performance.now();
     }
-    this.emit({ t: 'upd', time: v.time, speed: v.speed, population: v.population, ents, ...(add.length ? { add } : {}), ...(del.length ? { del } : {}), stock: v.stock, ...(roster ? { roster: v.roster } : {}) });
+    const od = JSON.stringify({ o: v.orders, w: v.wishes });
+    const orders = od !== this.ordersJson;
+    if (orders) this.ordersJson = od;
+    this.emit({ t: 'upd', time: v.time, speed: v.speed, population: v.population, ents, ...(add.length ? { add } : {}), ...(del.length ? { del } : {}), stock: v.stock, buildings: v.buildings, plots: v.plots, ...(roster ? { roster: v.roster } : {}), ...(orders ? { orders: v.orders, wishes: v.wishes } : {}) });
     const lines: FeedEntry[] = [];
     for (const ev of sim.events()) if (ev.t === 'feed') lines.push({ ...ev.item });
     if (lines.length) this.emit({ t: 'feed', items: lines });

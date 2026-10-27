@@ -1,5 +1,6 @@
 /** Helpers for tests: a real small village, a context over it, and people made to order. Not part of the library API. */
-import { Rng, type Good } from '@hearth/shared';
+import { Rng, isPassable, worldPathGrid, type Good } from '@hearth/shared';
+import { computeOverlay } from './construct';
 import type { Ctx } from './ctx';
 import { newPerson, type NewPersonOpts } from './people';
 import { createSim, type Sim } from './sim';
@@ -19,13 +20,18 @@ export function kit(seed = 1, population = 12): Kit {
   sim.step(3 * 15000);
   const st = sim.inspect() as SimState;
   const world = sim.world;
-  const sites = new SiteIndex(world, st.buildings, st.plots);
+  const sites = new SiteIndex(world, st.buildings, st.plots, st.orders);
+  const over = new Uint8Array(world.w * world.h);
+  computeOverlay(world, st.buildings, over);
+  const base = worldPathGrid(world);
   const rng = new Rng(seed ^ 0x7e57);
   const byId = (): Map<number, Person> => new Map(st.people.map((p) => [p.id, p]));
   const c: Ctx = {
     st,
     world,
-    grid: undefined as never,
+    grid: { w: world.w, h: world.h, cost: (x, y) => (over[y * world.w + x] === 1 ? Infinity : base.cost(x, y)) },
+    over,
+    open: (x, y) => over[y * world.w + x] !== 1 && (over[y * world.w + x] === 2 || isPassable(world, x, y)),
     sites,
     rng,
     pending: [],

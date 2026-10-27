@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { O, T, generateWorld, type BuildingKind, type Look } from '@hearth/shared';
+import { BLUEPRINTS, O, T, generateWorld, type BuildKind, type BuildingKind, type ConView, type Look } from '@hearth/shared';
 import { genBeast, BEAST_FRAMES, BEAST_KEYS } from './beasts';
-import { genBuilding } from './buildings';
+import { genBuilding, genConstruction } from './buildings';
+import { conKey, progressOf } from './construction';
 import { FRAME_COUNTS, genCharacter, type CharState } from './character';
 import { cb, cg, cr, hex, mix, rgba } from './color';
 import { FLORA_CODES, VARIANTS, genObject } from './flora';
@@ -102,7 +103,7 @@ describe('vegetation, props and mountains', () => {
 });
 
 describe('buildings', () => {
-  const sizes: Record<BuildingKind, [number, number]> = { house: [3, 3], inn: [4, 4], smithy: [3, 3], alchemy: [3, 3], market: [4, 3], shrine: [2, 2], pagoda: [5, 5], hall: [4, 5], dojo: [4, 4], farmhouse: [3, 3], herbHut: [2, 2], mineEntrance: [1, 1], tower: [2, 2], gate: [4, 2], barracks: [4, 3], ruinedHouse: [3, 3], warehouse: [4, 3], teahouse: [3, 3], hermitage: [3, 3], yard: [5, 4], dormitory: [4, 3], pavilion: [3, 3], sectGate: [4, 1] };
+  const sizes: Record<BuildingKind, [number, number]> = { house: [3, 3], inn: [4, 4], smithy: [3, 3], alchemy: [3, 3], market: [4, 3], shrine: [2, 2], pagoda: [5, 5], hall: [4, 5], dojo: [4, 4], farmhouse: [3, 3], herbHut: [2, 2], mineEntrance: [1, 1], tower: [2, 2], gate: [4, 2], barracks: [4, 3], ruinedHouse: [3, 3], warehouse: [4, 3], teahouse: [3, 3], hermitage: [3, 3], yard: [5, 4], dormitory: [4, 3], pavilion: [3, 3], sectGate: [4, 1], workshop: [3, 3], watchpost: [2, 2], well: [1, 1], wall: [4, 1] };
   it('renders every kind, normal and fallen, in every season', () => {
     for (const [kind, [w, d]] of Object.entries(sizes) as [BuildingKind, [number, number]][]) {
       for (const fallen of [false, true]) {
@@ -122,6 +123,73 @@ describe('buildings', () => {
     expect(opaque(a.glow)).toBeGreaterThan(0);
     const f = genBuilding({ ...spec, fallen: true });
     expect(f.lights.length).toBe(0);
+  });
+});
+
+describe('construction stages', () => {
+  const spec = (kind: BuildingKind, w: number, d: number) => ({ id: 11, kind, w, d, door: { dx: Math.floor(w / 2), dy: d }, season: 1, roofCss: null, accentCss: null, fallen: false });
+  const KINDS: [BuildingKind, BuildKind, number, number][] = [
+    ['house', 'house', 3, 3],
+    ['warehouse', 'warehouse', 4, 3],
+    ['workshop', 'workshop', 3, 3],
+    ['shrine', 'shrine', 2, 2],
+    ['watchpost', 'watchpost', 2, 2],
+    ['well', 'well', 1, 1],
+    ['wall', 'wall', 4, 1],
+  ];
+  const states = (bk: BuildKind): ConView[] => {
+    const n = BLUEPRINTS[bk].stages.length;
+    const out: ConView[] = [];
+    for (let done = 0; done < n; done++) for (const pct of [0, 25, 50, 75]) out.push({ mode: 'build', done, pct, order: 1, pile: { planks: 6, stone: 6, thatch: 3 } });
+    return out;
+  };
+  it('draws every stage of every buildable kind inside the finished sprite bounds, with something showing', () => {
+    for (const [kind, bk, w, d] of KINDS) {
+      const full = genBuilding(spec(kind, w, d));
+      for (const con of states(bk)) {
+        const a = genConstruction(spec(kind, w, d), progressOf(bk, con));
+        expect(opaque(a.pb), `${kind} ${conKey(con)}`).toBeGreaterThan(5);
+        expect(a.pb.w, kind).toBeGreaterThanOrEqual(full.pb.w);
+      }
+    }
+  });
+  it('changes at every stage and ends much bigger than it starts', () => {
+    for (const [kind, bk, w, d] of KINDS) {
+      const bp = BLUEPRINTS[bk];
+      const seen = new Set<string>();
+      let first = 0;
+      let last = 0;
+      for (let done = 0; done < bp.stages.length; done++) {
+        const a = genConstruction(spec(kind, w, d), progressOf(bk, { mode: 'build', done, pct: 0, order: 1 }));
+        seen.add(Array.from(a.pb.px).join(','));
+        if (done === 0) first = opaque(a.pb);
+        last = opaque(a.pb);
+      }
+      expect(seen.size, kind).toBe(bp.stages.length);
+      expect(last, kind).toBeGreaterThan(first);
+    }
+  });
+  it('is deterministic and the demolition reverses the sequence', () => {
+    const s = spec('house', 3, 3);
+    const con: ConView = { mode: 'build', done: 3, pct: 50, order: 1 };
+    const a = genConstruction(s, progressOf('house', con));
+    const b = genConstruction(s, progressOf('house', con));
+    expect(a.pb.px.every((v, i) => v === b.pb.px[i])).toBe(true);
+    // half way through taking the roof off looks like the building with a half-laid roof (plus rubble)
+    const down = progressOf('house', { mode: 'demolish', done: 5, pct: 50, order: 2 });
+    const up = progressOf('house', { mode: 'build', done: 4, pct: 50, order: 2 });
+    expect(down.roof).toBe(up.roof);
+    expect(down.walls).toBe(1);
+    expect(down.demolish).toBe(true);
+    const rub = progressOf('house', { mode: 'rubble', done: 0, pct: 0, order: 2 });
+    expect(rub.rubble).toBe(1);
+    expect(rub.walls).toBe(0);
+    expect(opaque(genConstruction(s, rub).pb)).toBeGreaterThan(50);
+  });
+  it('keys differ per visible state and agree for identical ones', () => {
+    expect(conKey({ mode: 'build', done: 1, pct: 30, order: 1 })).toBe(conKey({ mode: 'build', done: 1, pct: 40, order: 9 }));
+    expect(conKey({ mode: 'build', done: 1, pct: 30, order: 1 })).not.toBe(conKey({ mode: 'build', done: 1, pct: 55, order: 1 }));
+    expect(conKey({ mode: 'build', done: 1, pct: 30, order: 1, pile: { stone: 12 } })).not.toBe(conKey({ mode: 'build', done: 1, pct: 30, order: 1 }));
   });
 });
 

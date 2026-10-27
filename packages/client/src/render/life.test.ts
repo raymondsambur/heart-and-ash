@@ -151,7 +151,7 @@ describe('animation selection', () => {
     expect(p.state).toBe('cheer');
   });
   it('plays a matching in-place animation for every server act cue', () => {
-    const acts: NpcAct[] = ['work', 'farm', 'forge', 'brew', 'gather', 'mine', 'guard', 'eat', 'chat', 'pray', 'sweep', 'rest', 'patrol', 'trade', 'train', 'shelter', 'mourn', 'celebrate', 'loot', 'meditate', 'spar', 'serve'];
+    const acts: NpcAct[] = ['work', 'farm', 'forge', 'brew', 'gather', 'mine', 'guard', 'eat', 'chat', 'pray', 'sweep', 'rest', 'patrol', 'trade', 'train', 'shelter', 'mourn', 'celebrate', 'loot', 'meditate', 'spar', 'serve', 'build', 'dig'];
     expect(Object.keys(ACT_STATE).sort()).toEqual([...acts].sort());
     const { store } = setup(3);
     const e = store.map.get(1)!;

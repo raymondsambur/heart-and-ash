@@ -161,7 +161,9 @@ export class SceneRenderer {
       if (nd >= this.dynPool.length) this.dynPool.push({ key: 0, kind: 0, b: null, e: null });
       return this.dynPool[nd++];
     };
-    for (const b of w.buildings) {
+    const bl = w.buildings;
+    for (let bi = 0; bi < bl.length + w.plotMarks.length; bi++) {
+      const b = bi < bl.length ? bl[bi] : w.plotMarks[bi - bl.length];
       const d = b.def;
       // quick cull by the footprint's screen box
       const left = (d.x - (d.y + d.d)) * 16 - 24;

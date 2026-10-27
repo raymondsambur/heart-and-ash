@@ -10,11 +10,12 @@
 import type { BuildingDef, PlotDef } from './terrain';
 import type { Dir, Look, NpcAct, NpcRole, WeatherKind } from './types';
 import type { NeedId } from './data/needs';
+import type { BuildKind } from './data/blueprints';
 import type { Speed } from './constants';
 
 export const WS_PATH = '/ws';
 export const LOGOUT_PATH = '/api/logout';
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 // ---------------------------------------------------------------------------
 // HTTP API
@@ -191,6 +192,43 @@ export interface PersonSheet {
   tools: number;
 }
 
+/** A build or demolish order, as the order list shows it. */
+export interface OrderView {
+  id: number;
+  mode: 'build' | 'demolish' | 'rubble';
+  kind: BuildKind;
+  label: string;
+  x: number;
+  y: number;
+  w: number;
+  d: number;
+  /** The building or plot it is about. */
+  building?: number;
+  plot?: number;
+  /** Finished stages and the stages in all (building: `stages` stands for the finished building). */
+  done: number;
+  stages: number;
+  /** 0..100 over the whole job. */
+  overall: number;
+  /** Why it is not moving, in words ("waiting for 12 planks"). */
+  waiting?: string;
+  /** Materials the whole build needs, and how many have reached the plot. */
+  needs: { good: string; have: number; need: number }[];
+  /** Villagers on the job board's claim for it right now. */
+  workers: number;
+  day: number;
+  /** "you" for the manager, or the villager's name when they started it. */
+  by: string;
+}
+
+/** Someone who wants something built and says so (own house, a shrine), until it is. */
+export interface WishView {
+  who: number;
+  name: string;
+  wish: string;
+  day: number;
+}
+
 /** Everything the client draws from. The sim produces it; the server adds `step` conversion to real time. */
 export interface VillageView {
   time: TimeView;
@@ -203,6 +241,9 @@ export interface VillageView {
   roster: PersonBrief[];
   /** The latest feed lines, oldest first. */
   feed: FeedEntry[];
+  /** Build and demolish orders in progress, oldest first. */
+  orders: OrderView[];
+  wishes: WishView[];
 }
 
 // ---------------------------------------------------------------------------
@@ -216,6 +257,12 @@ export type C2S =
   | { t: 'speed'; speed: Speed }
   /** Watch one villager: the server then sends their sheet about once a second. `null` stops watching. */
   | { t: 'inspect'; id: number | null }
+  /** Order a building raised (or a field ploughed) with its top-left corner at (x, y). A wall can be laid the other way (`rot`). */
+  | { t: 'build'; kind: BuildKind; x: number; y: number; rot?: boolean }
+  /** Order a building (or a field) taken down. */
+  | { t: 'demolish'; building?: number; plot?: number }
+  /** Cancel an order. Work that has begun is turned into a demolition. */
+  | { t: 'cancel'; order: number }
   | { t: 'ping'; n: number };
 
 export type NoteLevel = 'info' | 'good' | 'warn' | 'bad';
@@ -241,6 +288,9 @@ export type S2C =
       stock?: StockSummary;
       /** The villager list, when it changed (a few times a minute at most). */
       roster?: PersonBrief[];
+      /** The order list and the wishes, when they changed. */
+      orders?: OrderView[];
+      wishes?: WishView[];
     }
   /** New feed lines. */
   | { t: 'feed'; items: FeedEntry[] }

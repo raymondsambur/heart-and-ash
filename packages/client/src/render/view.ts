@@ -124,6 +124,8 @@ export class GameView implements GameViewApi {
   loadWorld(world: DecodedWorld): void {
     this.world = new WorldModel(world);
     this.chunks = new ChunkManager(this.world);
+    const chunks = this.chunks;
+    this.world.onTileChange = (x, y) => chunks.invalidateTile(x, y);
     this.bank = new SpriteBank(this.world);
     this.sceneR = new SceneRenderer(this.world, this.bank, this.ents);
     this.applySeason(this.clock.season);
@@ -144,7 +146,7 @@ export class GameView implements GameViewApi {
   }
 
   setPlots(list: PlotDef[]): void {
-    if (this.world) this.world.plots = list;
+    this.world?.setPlots(list);
   }
 
   applyEntities(delta: { add?: RenderEntity[]; upd?: RenderEntityPatch[]; del?: number[] }): void {

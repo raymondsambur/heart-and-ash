@@ -14,3 +14,4 @@ export * from './data/skills';
 export * from './data/traits';
 export * from './data/actions';
 export * from './data/ambitions';
+export * from './data/blueprints';

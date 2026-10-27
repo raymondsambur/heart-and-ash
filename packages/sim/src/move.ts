@@ -1,5 +1,5 @@
 /** Walking: paths over the shared grid, one tile at a time, as in M0 (the view reports the step in progress and the tiles after it). */
-import { STEP_MS, findPath, isPassable, tileSpeed, type Dir, type Point } from '@hearth/shared';
+import { STEP_MS, TERRAIN_INFO, findPath, tileSpeed, type Dir, type Point } from '@hearth/shared';
 import type { Ctx } from './ctx';
 import type { Person } from './types';
 
@@ -22,7 +22,7 @@ function beginStep(c: Ctx, p: Person): void {
     return;
   }
   const diag = next.x !== p.x && next.y !== p.y ? Math.SQRT2 : 1;
-  const speed = tileSpeed(c.world, next.x, next.y) || 1;
+  const speed = tileSpeed(c.world, next.x, next.y) || (c.over[next.y * c.world.w + next.x] === 2 ? TERRAIN_INFO[c.world.terrain[next.y * c.world.w + next.x]].speed : 0) || 1;
   const slow = p.needs.rest < 10 ? 1.4 : 1;
   p.nx = next.x;
   p.ny = next.y;
@@ -68,7 +68,7 @@ export function spotNear(c: Ctx, x: number, y: number, r: number): Point {
   for (let i = 0; i < 6; i++) {
     const dx = c.rng.int(-r, r);
     const dy = c.rng.int(-r, r);
-    if (isPassable(c.world, x + dx, y + dy)) return { x: x + dx, y: y + dy };
+    if (c.open(x + dx, y + dy)) return { x: x + dx, y: y + dy };
   }
   return { x, y };
 }

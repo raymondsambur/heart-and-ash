@@ -6,7 +6,9 @@ import {
   SPEEDS,
   START_STOCK,
   GOODS,
+  TERRAIN_INFO,
   generateWorld,
+  isPassable,
   villageName,
   worldPathGrid,
   type BuildingDef,
@@ -22,6 +24,7 @@ import {
 import { newField } from './actions';
 import { drawAmbitions, reviewAmbitions } from './ambitions';
 import { clockOf, dayOf } from './calendar';
+import { cancelOrder, computeOverlay, orderDemolish, orderViews, placeOrder, wishes } from './construct';
 import type { Ctx } from './ctx';
 import { tickPerson } from './exec';
 import { refreshJobs } from './jobs';
@@ -77,7 +80,22 @@ export function startingKnowledge(sites: SiteIndex, home: { x: number; y: number
 
 export function createSim(opts: CreateSimOptions): Sim {
   const world = generateWorld(opts.seed);
-  const grid: PathGrid = worldPathGrid(world);
+  const baseGrid = worldPathGrid(world);
+  /** What the village has built on or cleared since the map was made (see construct.ts). */
+  const over = new Uint8Array(world.w * world.h);
+  const grid: PathGrid = {
+    w: world.w,
+    h: world.h,
+    cost(x, y) {
+      const o = over[y * world.w + x];
+      if (o === 1) return Infinity;
+      if (o === 2) {
+        const t = TERRAIN_INFO[world.terrain[y * world.w + x]];
+        return t.passable && t.speed > 0 ? 1 / t.speed : Infinity;
+      }
+      return baseGrid.cost(x, y);
+    },
+  };
   const rng = new Rng(opts.seed ^ 0x51a7e);
   const pending: SimEvent[] = [];
   let st: SimState;
@@ -88,7 +106,8 @@ export function createSim(opts: CreateSimOptions): Sim {
   } else {
     st = emptyState(opts.seed);
   }
-  const sites = new SiteIndex(world, st.buildings, st.plots);
+  const sites = new SiteIndex(world, st.buildings, st.plots, st.orders);
+  computeOverlay(world, st.buildings, over);
 
   // ---- the shared context, refreshed once per step ----
   let byId = new Map<number, Person>();
@@ -112,6 +131,14 @@ export function createSim(opts: CreateSimOptions): Sim {
     season: 0,
     temp: 10,
     weather: 'clear',
+    over,
+    open(x, y) {
+      if (x < 0 || y < 0 || x >= world.w || y >= world.h) return false;
+      const o = over[y * world.w + x];
+      if (o === 1) return false;
+      if (o === 2) return TERRAIN_INFO[world.terrain[y * world.w + x]].passable;
+      return isPassable(world, x, y);
+    },
     person(id) {
       if (stale) rebuild();
       return byId.get(id);
@@ -153,6 +180,10 @@ export function createSim(opts: CreateSimOptions): Sim {
       jobs: [],
       nextJobId: 1,
       jobsAt: -1,
+      orders: [],
+      nextOrderId: 1,
+      nextBuildingId: buildings.reduce((m, b) => Math.max(m, b.id), 0) + 1,
+      nextPlotId: plots.reduce((m, p) => Math.max(m, p.id), 0) + 1,
       people: [],
       graves: [],
       feed: [],
@@ -250,6 +281,10 @@ export function createSim(opts: CreateSimOptions): Sim {
         st.speed = cmd.speed as Speed;
         return { ok: true };
       }
+      sync();
+      if (cmd.t === 'build') return placeOrder(c, cmd.kind, cmd.x, cmd.y, cmd.rot === true, null);
+      if (cmd.t === 'demolish') return orderDemolish(c, cmd.building, cmd.plot);
+      if (cmd.t === 'cancel') return cancelOrder(c, cmd.order);
       return { ok: false, code: 'unknown_command', text: 'Unknown command.' };
     },
 
@@ -285,6 +320,8 @@ export function createSim(opts: CreateSimOptions): Sim {
         population: here.length,
         roster: here.map((p) => briefOf(c, p)),
         feed: st.feed.slice(-FEED_IN_VIEW).map((f) => ({ ...f, people: f.people.slice() })),
+        orders: orderViews(c),
+        wishes: wishes(c),
       };
     },
 

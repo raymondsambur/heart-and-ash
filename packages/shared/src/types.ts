@@ -43,7 +43,9 @@ export type NpcAct =
   | 'meditate'
   | 'spar'
   | 'serve'
-  | 'loot';
+  | 'loot'
+  | 'build'
+  | 'dig';
 
 export type WeaponType = 'sword' | 'blade' | 'spear' | 'staff' | 'fist';
 export const WEAPON_TYPES: WeaponType[] = ['sword', 'blade', 'spear', 'staff', 'fist'];

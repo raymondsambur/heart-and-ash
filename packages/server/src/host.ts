@@ -18,6 +18,8 @@ import {
   type EntityUpdate,
   type EntityView,
   type FeedEntry,
+  type OrderView,
+  type WishView,
   type PersonBrief,
   type S2C,
   type VillageView,
@@ -61,7 +63,7 @@ interface Running {
   lastSaveAt: number;
   /** Entity ids the connected client knows, and the JSON of the slow-changing parts it last received. */
   known: Set<number>;
-  sent: { buildings: string; plots: string; stock: string; roster: string };
+  sent: { buildings: string; plots: string; stock: string; roster: string; orders: string };
   /** The villager whose sheet the client is watching, and when it was last sent (real ms). */
   watch: number | null;
   sheetAt: number;
@@ -211,6 +213,19 @@ export class VillageHost {
         this.sendSheet(r, this.now());
         return;
       }
+      case 'build':
+      case 'demolish':
+      case 'cancel': {
+        if (!a.ready) return void a.conn.send({ t: 'err', code: 'no_hello', text: 'Say hello first.' });
+        const r = this.running.get(a.user.id);
+        if (!r) return;
+        const res = r.sim.command(msg.t === 'build' ? { t: 'build', kind: msg.kind, x: msg.x, y: msg.y, rot: msg.rot } : msg.t === 'demolish' ? { t: 'demolish', building: msg.building, plot: msg.plot } : { t: 'cancel', order: msg.order });
+        if (!res.ok) return void a.conn.send({ t: 'err', code: res.code, text: res.text });
+        if (res.text) a.conn.send({ t: 'note', level: 'good', text: res.text });
+        r.dirty = true;
+        this.sendUpdate(r);
+        return;
+      }
       case 'speed': {
         if (!a.ready) return void a.conn.send({ t: 'err', code: 'no_hello', text: 'Say hello first.' });
         const r = this.running.get(a.user.id);
@@ -246,7 +261,7 @@ export class VillageHost {
       dirty: false,
       lastSaveAt: this.now(),
       known: new Set(),
-      sent: { buildings: '', plots: '', stock: '', roster: '' },
+      sent: { buildings: '', plots: '', stock: '', roster: '', orders: '' },
       watch: null,
       sheetAt: 0,
       rosterAt: 0,
@@ -305,7 +320,7 @@ export class VillageHost {
 
   private remember(r: Running, view: VillageView): void {
     r.known = new Set(view.entities.map((e) => e.id));
-    r.sent = { buildings: JSON.stringify(view.buildings), plots: JSON.stringify(view.plots), stock: JSON.stringify(view.stock), roster: JSON.stringify(view.roster) };
+    r.sent = { buildings: JSON.stringify(view.buildings), plots: JSON.stringify(view.plots), stock: JSON.stringify(view.stock), roster: JSON.stringify(view.roster), orders: JSON.stringify({ o: view.orders, w: view.wishes }) };
     r.rosterAt = this.now();
   }
 
@@ -330,6 +345,12 @@ export class VillageHost {
     if (b !== r.sent.buildings) (msg.buildings = v.buildings), (r.sent.buildings = b);
     const p = JSON.stringify(v.plots);
     if (p !== r.sent.plots) (msg.plots = v.plots), (r.sent.plots = p);
+    const od = JSON.stringify({ o: v.orders, w: v.wishes });
+    if (od !== r.sent.orders) {
+      msg.orders = v.orders as OrderView[];
+      msg.wishes = v.wishes as WishView[];
+      r.sent.orders = od;
+    }
     const s = JSON.stringify(v.stock);
     if (s !== r.sent.stock) (msg.stock = v.stock), (r.sent.stock = s);
     const t = this.now();
