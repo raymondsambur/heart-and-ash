@@ -12,7 +12,7 @@ import type { NeedId } from './needs';
 import type { SkillId } from './skills';
 
 /** Where an action happens. `water` is the well or the stream, `person` is next to another villager, `here` is anywhere. */
-export type PlaceKind = 'here' | 'home' | 'store' | 'field' | 'water' | 'stream' | 'forest' | 'quarry' | 'meadow' | 'plaza' | 'shrine' | 'edge' | 'person' | 'buildsite';
+export type PlaceKind = 'here' | 'home' | 'store' | 'field' | 'water' | 'stream' | 'forest' | 'quarry' | 'meadow' | 'plaza' | 'shrine' | 'edge' | 'person' | 'buildsite' | 'post';
 
 export type ActionGroup = 'survival' | 'food' | 'crafting' | 'care' | 'social' | 'conflict' | 'duty' | 'life' | 'construction';
 export type ActionTag = 'work' | 'leisure' | 'social' | 'risky' | 'crime' | 'violent' | 'faith' | 'care' | 'romance' | 'learn' | 'rest';

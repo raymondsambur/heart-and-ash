@@ -19,6 +19,18 @@ import type { Person } from './types';
 export const COMING_OF_AGE = 14;
 export const MARRIAGE_AGE = 16;
 
+/** What a person is best at: their top skill (the first of equals, in the order of `SKILL_IDS`, farming when they have none). */
+export function bestSkill(p: Person): SkillId {
+  let best: SkillId = 'farming';
+  for (const s of SKILL_IDS) if (p.skills[s].lv > p.skills[best].lv) best = s;
+  return best;
+}
+
+/** A guard: best at fighting, and good at it (what the villager list calls "Guard"). */
+export function isGuard(p: Person): boolean {
+  return p.skills.fighting.lv >= 3 && bestSkill(p) === 'fighting';
+}
+
 export function ageOf(p: Pick<Person, 'born'>, day: number): number {
   return Math.floor((day - p.born) / DAYS_PER_YEAR);
 }

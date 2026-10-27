@@ -7,7 +7,8 @@ import { ACTIONS, NEEDS, NEED_CRITICAL, traitMod, urgency, type NeedId } from '@
 import { ambitionCands, active } from './ambitions';
 import type { Ctx } from './ctx';
 import { MIN } from './ctx';
-import { ageOf, COMING_OF_AGE } from './people';
+import { calm, GUARD_DUTY, isDutyJob } from './duty';
+import { ageOf, COMING_OF_AGE, isGuard } from './people';
 import { worstGrudge } from './memory';
 import { priorityMult } from './policy';
 import type { Cand, Goal, Job, Person } from './types';
@@ -88,6 +89,8 @@ function jobCands(c: Ctx, p: Person, age: number): Cand[] {
   if (age < COMING_OF_AGE || !workHours(c, p)) return [];
   const out: Cand[] = [];
   const elder = age >= 60;
+  // A guard leans towards the watch while the village is not short of food or firewood.
+  const duty = isGuard(p) && calm(c);
   for (const job of c.st.jobs) {
     const mine = p.job === job.id;
     if (!mine && job.claimed.length >= job.slots) continue;
@@ -99,6 +102,7 @@ function jobCands(c: Ctx, p: Person, age: number): Cand[] {
     const dist = distanceTo(c, p, job.goal);
     let score = (job.priority / 3) * (0.7 + 0.06 * lv) * Math.max(0.3, 1 + traitMod(p.traits, 'work')) * (1 / (1 + dist / 40));
     score *= priorityMult(c, job);
+    if (duty && isDutyJob(job)) score *= GUARD_DUTY;
     if (mine) score *= 1.25;
     if (p.needs.rest < 30) score *= 0.6;
     if (p.mood < 30) score *= 0.7;

@@ -3,7 +3,7 @@ import { ACTIONS, AMBITIONS, NEEDS, NEED_IDS, SKILL_IDS, SKILL_LABEL, TRAITS, xp
 import { describe } from './ambitions';
 import type { Ctx } from './ctx';
 import { needPhrase, lowestNeed, computeMood } from './needs';
-import { ageOf, COMING_OF_AGE, roleOf } from './people';
+import { ageOf, bestSkill, COMING_OF_AGE, roleOf } from './people';
 import type { Person } from './types';
 
 const SOURCE_WORD: Record<string, string> = {
@@ -140,8 +140,7 @@ const SKILL_TITLE: Record<SkillId, string> = {
 export function titleOf(p: Person, day: number): string {
   const age = ageOf(p, day);
   if (age < COMING_OF_AGE) return age < 3 ? 'Baby' : 'Child';
-  let best: SkillId = 'farming';
-  for (const s of SKILL_IDS) if (p.skills[s].lv > p.skills[best].lv) best = s;
+  const best = bestSkill(p);
   const base = p.skills[best].lv >= 3 ? SKILL_TITLE[best] : 'Villager';
   return age >= 60 ? `Elder ${base.toLowerCase()}` : base;
 }
