@@ -88,6 +88,7 @@ export function chopTree(c: Ctx, tile: Tile): boolean {
     e.age = 0;
   } else c.st.flora.push({ i, code: O.Stump, was: code, age: 0 });
   c.world.objects[i] = O.Stump;
+  c.touch(i);
   return true;
 }
 
@@ -99,6 +100,7 @@ export function pickPlant(c: Ctx, tile: Tile): boolean {
   const now = code === O.Bush ? O.BareBush : O.None;
   c.st.flora.push({ i, code: now, was: code, age: 0 });
   c.world.objects[i] = now;
+  c.touch(i);
   return true;
 }
 
@@ -113,6 +115,7 @@ export function clearFlora(c: Ctx, x: number, y: number, w: number, d: number): 
   for (const f of c.st.flora) {
     if (!inside(f.i)) continue;
     if (c.world.objects[f.i] !== O.Building) c.world.objects[f.i] = O.None;
+    c.touch(f.i);
     f.code = O.None;
     f.was = O.None;
   }
@@ -127,6 +130,7 @@ export function clearBrush(c: Ctx, x: number, y: number, w: number, d: number): 
       const o = c.world.objects[i];
       if (TREE_CODES.has(o) || o === O.Bush || o === O.Flowers || o === O.Reeds) {
         c.world.objects[i] = O.None;
+        c.touch(i);
         c.st.flora.push({ i, code: O.None, was: O.None, age: 0 });
         delete c.st.chops[i];
       }
@@ -151,14 +155,17 @@ export function floraDay(c: Ctx): void {
     if (f.was === O.Bush || f.was === O.Flowers) {
       if (f.age >= FLORA.bushDays && !occupied(c, f.i)) {
         c.world.objects[f.i] = f.was;
+        c.touch(f.i);
         continue;
       }
     } else if (f.code === O.Stump && f.age >= FLORA.stumpDays) {
       f.code = O.Sapling;
       f.age = 0;
       c.world.objects[f.i] = O.Sapling;
+      c.touch(f.i);
     } else if (f.code === O.Sapling && f.age >= FLORA.saplingDays && !occupied(c, f.i)) {
       c.world.objects[f.i] = f.was;
+      c.touch(f.i);
       continue;
     }
     keep.push(f);

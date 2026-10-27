@@ -34,6 +34,8 @@ export function kit(seed = 1, population = 12): Kit {
     grid: { w: world.w, h: world.h, cost: (x, y) => (over[y * world.w + x] === 1 ? Infinity : base.cost(x, y)) },
     over,
     baseTerrain: world.terrain.slice(),
+    touch() {},
+    refreshCosts() {},
     open: (x, y) => over[y * world.w + x] !== 1 && (over[y * world.w + x] === 2 || isPassable(world, x, y)),
     sites,
     rng,

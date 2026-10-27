@@ -25,6 +25,7 @@ function covered(c: Ctx, i: number): boolean {
 
 function setTerrain(c: Ctx, i: number, t: number): void {
   c.world.terrain[i] = t;
+  c.touch(i);
   if (t === c.baseTerrain[i]) delete c.st.ground[i];
   else c.st.ground[i] = t;
 }

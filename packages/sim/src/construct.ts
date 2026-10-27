@@ -73,6 +73,7 @@ export function computeOverlay(world: Pick<WorldData, 'w' | 'h' | 'objects'>, bu
 /** Call after anything was raised, finished or removed: the blocked tiles, the sites and the job board follow. */
 export function structuresChanged(c: Ctx): void {
   computeOverlay(c.world, c.st.buildings, c.over);
+  c.refreshCosts();
   c.sites.sync(c.st.buildings, c.st.plots, c.st.orders);
   c.st.jobsAt = -1;
   // People already on their way must not walk through what now stands.

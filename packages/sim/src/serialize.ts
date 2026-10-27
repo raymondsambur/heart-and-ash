@@ -65,6 +65,7 @@ export interface SimSnapshot {
   flora: FloraEntry[];
   chops: Record<number, number>;
   ring: WallRing | null;
+  size: number;
   ground: Record<number, number>;
   /** The tiles with traffic: [tile, traffic, days quiet]. */
   traffic: [number, number, number][];
@@ -243,6 +244,7 @@ export function serializeState(st: SimState, rng: Rng): SimSnapshot {
       flora: st.flora,
       chops: st.chops,
       ring: st.ring,
+      size: st.size,
       ground: st.ground,
       traffic: trafficRows(st.traffic, st.quiet),
     }),
@@ -343,6 +345,7 @@ export function restoreState(saved: unknown, rng: Rng, cells = 0): SimState {
     ground: typeof s.ground === 'object' && s.ground !== null && !Array.isArray(s.ground) ? clone<Record<number, number>>(s.ground) : {},
     ...trafficArrays(Array.isArray(s.traffic) ? (s.traffic as [number, number, number][]) : [], cells),
     ring: typeof s.ring === 'object' && s.ring !== null ? clone<WallRing>(s.ring) : null,
+    size: typeof s.size === 'number' && s.size >= 32 ? s.size : 96,
     flora: Array.isArray(s.flora) ? clone<FloraEntry[]>(s.flora) : [],
     chops: typeof s.chops === 'object' && s.chops !== null && !Array.isArray(s.chops) ? clone<Record<number, number>>(s.chops) : {},
     outside: ensureOutside(typeof s.outside === 'object' && s.outside !== null ? clone<OutsideState>(s.outside) : undefined, rng, dayOf(num(s, 'totalMs'))),

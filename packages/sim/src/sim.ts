@@ -57,6 +57,8 @@ export interface CreateSimOptions {
   saved?: SimSnapshot | null;
   /** Number of people in a new village (default 12). The bench uses larger numbers. */
   population?: number;
+  /** Width and height of the map of a new village in tiles (default 96; the game asks for `MAP_SIZE`). A saved village ignores it. */
+  size?: number;
 }
 
 /** The library contract (docs/ARCHITECTURE.md). Pure and deterministic: one seeded rng, no wall clock, no I/O. */
@@ -95,21 +97,34 @@ export function startingKnowledge(sites: SiteIndex, home: { x: number; y: number
 }
 
 export function createSim(opts: CreateSimOptions): Sim {
-  const world = generateWorld(opts.seed);
+  // A saved village keeps the size of the map it was made on (the first maps were 96 x 96); a new one takes the size asked for.
+  const size = opts.saved ? (typeof opts.saved.size === 'number' && opts.saved.size >= 32 ? opts.saved.size : 96) : (opts.size ?? 96);
+  const world = generateWorld(opts.seed, size, size);
   const baseGrid = worldPathGrid(world);
   /** What the village has built on or cleared since the map was made (see construct.ts). */
   const over = new Uint8Array(world.w * world.h);
+  /** The time cost of entering every tile, worked out once and kept (the pathfinder asks for it thousands of times a day). */
+  const costGrid = new Float64Array(world.w * world.h);
+  const tileCost = (x: number, y: number): number => {
+    const o = over[y * world.w + x];
+    if (o === 1) return Infinity;
+    if (o === 2) {
+      const t = TERRAIN_INFO[world.terrain[y * world.w + x]];
+      return t.passable && t.speed > 0 ? 1 / t.speed : Infinity;
+    }
+    return baseGrid.cost(x, y);
+  };
+  const touch = (i: number): void => {
+    costGrid[i] = tileCost(i % world.w, (i / world.w) | 0);
+  };
+  const refreshCosts = (): void => {
+    for (let y = 0, i = 0; y < world.h; y++) for (let x = 0; x < world.w; x++, i++) costGrid[i] = tileCost(x, y);
+  };
   const grid: PathGrid = {
     w: world.w,
     h: world.h,
     cost(x, y) {
-      const o = over[y * world.w + x];
-      if (o === 1) return Infinity;
-      if (o === 2) {
-        const t = TERRAIN_INFO[world.terrain[y * world.w + x]];
-        return t.passable && t.speed > 0 ? 1 / t.speed : Infinity;
-      }
-      return baseGrid.cost(x, y);
+      return x < 0 || y < 0 || x >= world.w || y >= world.h ? Infinity : costGrid[y * world.w + x];
     },
   };
   const baseTerrain = world.terrain.slice();
@@ -129,6 +144,7 @@ export function createSim(opts: CreateSimOptions): Sim {
   applyFlora(world.objects, st.flora);
   applyGround(world.terrain, st.ground);
   computeOverlay(world, st.buildings, over);
+  refreshCosts();
 
   // ---- the shared context, refreshed once per step ----
   let byId = new Map<number, Person>();
@@ -154,6 +170,8 @@ export function createSim(opts: CreateSimOptions): Sim {
     weather: 'clear',
     over,
     baseTerrain,
+    touch,
+    refreshCosts,
     open(x, y) {
       if (x < 0 || y < 0 || x >= world.w || y >= world.h) return false;
       const o = over[y * world.w + x];
@@ -235,6 +253,7 @@ export function createSim(opts: CreateSimOptions): Sim {
       flora: [],
       chops: {},
       ring: null,
+      size,
       ground: {},
       traffic: new Float32Array(world.w * world.h),
       quiet: new Uint8Array(world.w * world.h),

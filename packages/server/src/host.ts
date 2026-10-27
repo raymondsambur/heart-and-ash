@@ -9,6 +9,7 @@
 import {
   CLOSE_BAD_PROTOCOL,
   CLOSE_REPLACED,
+  MAP_SIZE,
   PROTOCOL_VERSION,
   SIM_STEP_MS,
   TICK_MS,
@@ -171,8 +172,16 @@ export class VillageHost {
     const seed = villageSeed(this.config.worldSeed, userId);
     const name = villageName(new Rng(seed ^ 0xa11ce));
     const row = this.db.createVillage(userId, name, seed, this.now());
+    // A new village gets the big map; one from before (no size on record) keeps the small one it was made on.
+    this.db.kvSet(`village.${row.id}.size`, String(MAP_SIZE));
     this.log.info(`village created: ${row.name}`, { user: userId, seed });
     return row;
+  }
+
+  /** The width and height of a village's map in tiles. */
+  sizeOf(village: VillageRow): number {
+    const v = Number(this.db.kvGet(`village.${village.id}.size`));
+    return Number.isInteger(v) && v >= 32 ? v : 96;
   }
 
   private load(village: VillageRow): Sim {
@@ -193,7 +202,7 @@ export class VillageHost {
         this.db.kvSet(`village.${village.id}.broken.${this.now()}`, village.snapshot ?? '');
       }
     }
-    return createSim({ seed: village.seed });
+    return createSim({ seed: village.seed, size: this.sizeOf(village) });
   }
 
   // ---- connections ----------------------------------------------------------------------

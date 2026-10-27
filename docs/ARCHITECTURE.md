@@ -71,6 +71,10 @@ This is where the "anyone can do anything" promise lives.
 
 Where a standing rule puts a building is scored per kind in `shared/data/placement.ts` (fields huddle outside the square, houses gather near the green, watch posts and walls face the road the raiders come along); the sim and the soak's scripted manager share it.
 
+### The living ground
+
+The map is no longer fixed once made. `sim/flora.ts` turns trees into stumps, saplings and trees again, and bushes into bare bushes and back (`st.flora`, `st.chops`); `sim/roads.ts` counts footsteps per tile and wears busy open ground into dirt roads and gives quiet ones back (`st.traffic`, `st.quiet`, `st.ground`); `sim/walls.ts` and `shared/data/walls.ts` plan the wall as one rectangular loop of four-tile pieces with a single gate (`st.ring`). The objects and terrain arrays of the world are changed in place, the pathfinder's tile costs are cached and refreshed by `touch(i)` / `refreshCosts()`, and the client is sent the `flora` and `ground` lists. New villages are made on `MAP_SIZE` (160) tiles; a snapshot keeps its `size` (older villages stay 96). Snapshot version 7, protocol version 6. See `docs/notes/m6.md`.
+
 ### The Outside
 
 An abstract place with its own simple state (`st.outside`: a name, wealth, regard for the village, a trade pact, the day of the next caravan, price shocks and news). It produces caravans and envoys (decisions put to the manager through `offers`), rumours, newcomers and emigrants, buys the village's surplus and sells what it lacks for silver, and receives villagers who leave and sends them home with news (`sim/outside.ts`). It is a data model and an events source, not a map. Settlement tiers (hamlet, village, town) live beside it: they rise with people and houses, never fall, and decide which buildings may be raised and how many rules and orders a manager can keep. Snapshot version 6, protocol version 5.

@@ -5,6 +5,8 @@ export const TILE_H = 32;
 /** The playable map is one village-sized area. */
 export const VILLAGE_W = 96;
 export const VILLAGE_H = 96;
+/** The size of the map a new village gets (M6): the first 96 x 96 map was too small. A village from before keeps the size it was made with. */
+export const MAP_SIZE = 160;
 
 /** Calendar. */
 export const HOURS_PER_DAY = 24;

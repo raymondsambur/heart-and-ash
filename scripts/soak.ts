@@ -7,7 +7,7 @@
  * abandoned and still stuck, the longest time anybody was stuck with no way forward, the feed by kind, and the
  * average mood. A village that starves, freezes or goes silent shows up here before it shows up in play.
  */
-import { AMBITION_KINDS, CARETAKER_RULES, DAYS_PER_YEAR, GAME_DAY_MS, GAME_HOUR_MS } from '@hearth/shared';
+import { AMBITION_KINDS, CARETAKER_RULES, DAYS_PER_YEAR, MAP_SIZE, GAME_DAY_MS, GAME_HOUR_MS } from '@hearth/shared';
 import { createSim } from '@hearth/sim';
 import { createManager } from './manager';
 
@@ -19,6 +19,8 @@ function arg(name: string, def: string): string {
 const YEARS = Number(arg('years', '4'));
 const SEEDS = arg('seeds', '1,2,3').split(',').map(Number);
 const POP = Number(arg('pop', '12'));
+/** The map the villages are made on: the game's own, or `--size 96` for the first small one. */
+const SIZE = Number(arg('size', String(MAP_SIZE)));
 const quiet = process.argv.includes('--quiet');
 /** The scripted manager places orders once a game day; `--no-manager` leaves the village to itself. */
 const rulesMode = process.argv.includes('--rules');
@@ -60,7 +62,7 @@ function standingOf(list: readonly { kind: string; con?: unknown }[]): Record<st
 }
 
 function run(seed: number): Result {
-  const sim = createSim({ seed, population: POP });
+  const sim = createSim({ seed, population: POP, size: SIZE });
   const manager = createManager();
   // `--rules`: nobody places orders; the village runs on the suggested standing rules alone (what it does while you are away).
   if (rulesMode) for (const r of CARETAKER_RULES) sim.command({ t: 'rule', rule: { ...r, id: 0 } });

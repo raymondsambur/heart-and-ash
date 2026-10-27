@@ -20,6 +20,9 @@ interface Ctx {
   blight: Uint8Array;
   /** Stream centre column for every row. */
   streamX: Float32Array;
+  /** Where the 96 x 96 map the village was designed on sits in this one: the village, the stream and the first outcrops keep their places inside it. */
+  ox: number;
+  oy: number;
 }
 
 const ix = (c: { w: number }, x: number, y: number) => y * c.w + x;
@@ -39,8 +42,8 @@ function makeTerrain(c: Ctx): void {
   const { w, h, seed } = c;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      const hh = fbm(x / 26, y / 26, seed, 4);
-      const moist = fbm(x / 18 + 100, y / 18 + 100, seed + 77, 4);
+      const hh = fbm((x - c.ox) / 26, (y - c.oy) / 26, seed, 4);
+      const moist = fbm((x - c.ox) / 18 + 100, (y - c.oy) / 18 + 100, seed + 77, 4);
       const edge = Math.min(x, y, w - 1 - x, h - 1 - y);
       // A thick treeline towards the map edge, thinner inside.
       const treeBias = smoothstep(26, 2, edge) * 0.22;
@@ -58,7 +61,7 @@ function carveStream(c: Ctx): void {
   const { w, h, seed } = c;
   const phase = (seed % 628) / 100;
   for (let y = 0; y < h; y++) {
-    const x = 67 + 5 * Math.sin(y / 11 + phase) + (fbm(y / 8, 3.3, seed + 21, 3) - 0.5) * 7;
+    const x = 67 + c.ox + 5 * Math.sin((y - c.oy) / 11 + phase) + (fbm((y - c.oy) / 8, 3.3, seed + 21, 3) - 0.5) * 7;
     c.streamX[y] = x;
     const x0 = Math.round(x);
     for (let dx = 0; dx <= 1; dx++) {
@@ -83,11 +86,19 @@ function carveStream(c: Ctx): void {
 function placeOutcrops(c: Ctx): void {
   const { rng } = c;
   const spots = [
-    { x: 21, y: 22 },
-    { x: 24, y: 76 },
-    { x: 81, y: 34 },
-    { x: 79, y: 74 },
+    { x: 21 + c.ox, y: 22 + c.oy },
+    { x: 24 + c.ox, y: 76 + c.oy },
+    { x: 81 + c.ox, y: 34 + c.oy },
+    { x: 79 + c.ox, y: 74 + c.oy },
   ];
+  // A bigger map has more stone in the new land: outcrops scattered outside the first map's area, in proportion to the extra ground.
+  const extra = Math.round((c.w * c.h) / (VILLAGE_W * VILLAGE_H)) * 4 - 4;
+  for (let n = 0; n < extra; n++) {
+    const x = rng.int(6, c.w - 7);
+    const y = rng.int(6, c.h - 7);
+    if (x >= c.ox - 2 && x < c.ox + VILLAGE_W + 2 && y >= c.oy - 2 && y < c.oy + VILLAGE_H + 2) continue;
+    spots.push({ x, y });
+  }
   for (const s of spots) {
     const cx = s.x + rng.int(-3, 3);
     const cy = s.y + rng.int(-3, 3);
@@ -115,7 +126,7 @@ function scatterObjects(c: Ctx): void {
       if (c.objects[i] !== O.None) continue;
       let o: number = O.None;
       if (t === T.Forest) {
-        const dens = fbm(x / 9, y / 9, seed + 5, 3);
+        const dens = fbm((x - c.ox) / 9, (y - c.oy) / 9, seed + 5, 3);
         if (r < 0.22 + dens * 0.45) o = rng.chance(0.55) ? O.Oak : O.Pine;
         else if (r < 0.5) o = O.Bush;
       } else if (t === T.Grass) {
@@ -172,7 +183,8 @@ function house(id: number, kind: BuildingKind, x: number, y: number, w: number, 
 }
 
 function placeVillage(c: Ctx): StartVillage {
-  const { x: cx, y: cy } = VILLAGE_CENTER;
+  const cx = VILLAGE_CENTER.x + c.ox;
+  const cy = VILLAGE_CENTER.y + c.oy;
 
   // Clear a meadow, softer towards its edge.
   for (let y = cy - CLEAR_RY - 2; y <= cy + CLEAR_RY + 2; y++) {
@@ -252,6 +264,8 @@ export function generateWorld(seed: number, w = VILLAGE_W, h = VILLAGE_H): World
     objects: new Uint8Array(w * h),
     blight: new Uint8Array(w * h),
     streamX: new Float32Array(h),
+    ox: Math.max(0, Math.floor((w - VILLAGE_W) / 2)),
+    oy: Math.max(0, Math.floor((h - VILLAGE_H) / 2)),
   };
   makeTerrain(c);
   carveStream(c);

@@ -380,6 +380,8 @@ export interface SimState {
   chops: Record<number, number>;
   /** M6: the planned loop of the village wall, once it is begun. */
   ring: WallRing | null;
+  /** The map's width and height in tiles (a village from before M6 has the first, small map). */
+  size: number;
   /** Terrain that differs from the map (worn roads), tile to terrain code; the traffic that makes and unmakes it, and days a road has been quiet. */
   ground: Record<number, number>;
   traffic: Float32Array;

@@ -208,7 +208,7 @@ export function doorTile(x: number, y: number, w: number, d: number): { x: numbe
 // ---------------------------------------------------------------------------------------------------
 
 /** How far from the village green orders are accepted (the playable area is a bit larger than the cleared ground). */
-export const BUILD_RADIUS = 30;
+export const BUILD_RADIUS = 40;
 /** Blight density above which nothing is raised. */
 export const BUILD_BLIGHT_LIMIT = 60;
 /** At most this many orders at once. */

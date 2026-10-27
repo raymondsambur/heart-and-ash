@@ -26,6 +26,9 @@ export interface Ctx {
   over: Uint8Array;
   /** The terrain as the map was made, before any road was worn or grown over. */
   baseTerrain: Uint8Array;
+  /** The ground or what stands on one tile changed (a tree felled, a road worn): its walking cost is worked out again. `refreshCosts` redoes them all. */
+  touch(i: number): void;
+  refreshCosts(): void;
   /** Can people walk on this tile? The map, with what has been built or taken down. */
   open(x: number, y: number): boolean;
 }

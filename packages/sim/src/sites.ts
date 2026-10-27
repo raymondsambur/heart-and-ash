@@ -65,9 +65,9 @@ export class SiteIndex {
     };
     // Scan the map in strides so the sites are spread out; the order is fixed, so the ids are too.
     const scan = (kind: PlaceKind, stride: number, max: number, pred: (x: number, y: number) => boolean, minFromCentre = 0): void => {
-      let n = 0;
-      for (let y = 2; y < w.h - 2 && n < max; y += stride)
-        for (let x = 2; x < w.w - 2 && n < max; x += stride) {
+      const cells: Point[] = [];
+      for (let y = 2; y < w.h - 2; y += stride)
+        for (let x = 2; x < w.w - 2; x += stride) {
           // look for a qualifying tile inside the stride cell
           let found: Point | null = null;
           for (let dy = 0; dy < stride && !found; dy++)
@@ -76,11 +76,12 @@ export class SiteIndex {
               const yy = y + dy;
               if (ok(xx, yy) && Math.hypot(xx - center.x, yy - center.y) >= minFromCentre && pred(xx, yy)) found = { x: xx, y: yy };
             }
-          if (found) {
-            add(kind, found.x, found.y);
-            n++;
-          }
+          if (found) cells.push(found);
         }
+      // The first (small) map is scanned in raster order, which fixes the ids of the places people already know in saved villages. A bigger
+      // map has far more places than are kept, so it keeps the ones nearest the village.
+      if (w.w > 96) cells.sort((a, b) => Math.hypot(a.x - center.x, a.y - center.y) - Math.hypot(b.x - center.x, b.y - center.y) || a.y - b.y || a.x - b.x);
+      for (const f of cells.slice(0, max)) add(kind, f.x, f.y);
     };
     scan('stream', 7, 14, (x, y) => near(x, y, (t) => t === T.Water));
     scan('forest', 6, 60, (x, y) => near(x, y, (_t, o) => o === O.Oak || o === O.Pine) && w.terrain[y * w.w + x] !== T.Sand, 12);
