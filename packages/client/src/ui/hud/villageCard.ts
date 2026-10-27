@@ -1,4 +1,5 @@
 /** Top-left village card: name, population, the stockpile summary and the way out. */
+import { TIER_NAMES } from '@hearth/shared';
 import { t, tn } from '../../i18n';
 import type { UiContext } from '../context';
 import { h } from '../dom';
@@ -44,7 +45,8 @@ export function mountVillageCard(host: HTMLElement, ui: UiContext): { destroy():
   const update = () => {
     const v = ui.state.get('village');
     name.textContent = v?.name ?? t('app.title');
-    sub.textContent = tn('village.population', ui.state.get('population'));
+    const status = ui.state.get('status');
+    sub.textContent = `${tn('village.population', ui.state.get('population'))} · ${TIER_NAMES[status.tier]} · ${Math.round(status.silver)} silver`;
     const s = ui.state.get('stock');
     // Food is raw rations and cooked meals together (a meal feeds as well as a ration).
     for (const g of SHOWN) items.get(g)!.textContent = fmtCompact((s[g] ?? 0) + (g === 'ration' ? (s.meal ?? 0) : 0));

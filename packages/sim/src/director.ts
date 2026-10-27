@@ -17,7 +17,7 @@ import { addMood, clamp, feedAbout, mem, stat } from './util';
 
 export function newDirector(rng: Rng): DirectorState {
   const R = BAL.director.raid;
-  return { blight: 0, blightDay: BAL.director.blight.everyDays, raid: null, nextRaid: R.first + rng.int(0, R.spread * 2), last: {}, master: null };
+  return { blight: 0, blightDay: BAL.director.blight.everyDays, raid: null, nextRaid: R.first + rng.int(0, R.spread * 2), raidBonus: 0, last: {}, master: null };
 }
 
 /** The director of a save: the saved one, or for a village from before M3 a fresh one whose clocks start at `day`. */
@@ -28,7 +28,7 @@ export function ensureDirector(d: Partial<DirectorState> | undefined, rng: Rng, 
     fresh.blightDay += day;
     return fresh;
   }
-  return { blight: d.blight ?? 0, blightDay: d.blightDay ?? day + BAL.director.blight.everyDays, raid: d.raid ?? null, nextRaid: d.nextRaid ?? day + BAL.director.raid.first, last: { ...(d.last ?? {}) }, master: d.master ?? null };
+  return { blight: d.blight ?? 0, blightDay: d.blightDay ?? day + BAL.director.blight.everyDays, raid: d.raid ?? null, nextRaid: d.nextRaid ?? day + BAL.director.raid.first, raidBonus: d.raidBonus ?? 0, last: { ...(d.last ?? {}) }, master: d.master ?? null };
 }
 
 const TITLE: Partial<Record<SkillId, string>> = {
@@ -274,7 +274,8 @@ function raidDay(c: Ctx): void {
     d.nextRaid = c.day + 12;
     return;
   }
-  let size = c.rng.int(R.size[0], R.size[1]) + Math.floor((c.day / DAYS_PER_YEAR) * R.perYear);
+  let size = c.rng.int(R.size[0], R.size[1]) + Math.floor((c.day / DAYS_PER_YEAR) * R.perYear) + d.raidBonus;
+  d.raidBonus = 0;
   if (foodDaysOf(c) < 8) size = Math.max(2, size - 1);
   d.raid = { day: c.day + R.warnDays, size, warned: true };
   pushFeed(c.st, c.pending, 'raid', `Smoke on the ridge: about ${size} raiders are coming. They will be here by tomorrow night.`);

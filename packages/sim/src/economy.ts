@@ -107,6 +107,8 @@ export function statusOf(c: Ctx): VillageStatus {
     foodDays: Math.round(foodDaysOf(c) * 10) / 10,
     fuelDays: Math.round(Math.min(99, fuelDaysOf(c)) * 10) / 10,
     rationing: c.st.rationing,
+    tier: c.st.tier,
+    silver: Math.round(c.st.silver * 10) / 10,
     blight: blightReach(c),
     alert,
   };

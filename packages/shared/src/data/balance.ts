@@ -71,6 +71,35 @@ export const BAL = {
     repel: 1.15,
     overrun: 0.6,
   },
+
+  /** The Outside: the town beyond the map (docs/notes/m5.md). Prices are in silver per unit. */
+  outside: {
+    price: { ration: 1.2, wood: 0.5, planks: 1.4, stone: 0.9, cloth: 3, tool: 6 },
+    /** A caravan buys at this share of the price and sells at this multiple of it. */
+    buyShare: 0.7,
+    sellMark: 1.3,
+    /** Caravans: the first, then the gap in days (plus or minus the spread; a trade pact shortens it). */
+    caravan: { first: 25, gap: 28, spread: 8, pactFactor: 0.7 },
+    /** Envoys: not before this day, at least this many days apart, then a chance a day. */
+    envoy: { from: 60, gap: 70, chance: 1 / 30 },
+    /** Rumours from beyond the map: a chance a day, and how long a price shock lasts. */
+    news: { chance: 1 / 14, shock: 30 },
+    startSilver: 20,
+    /** Regard (how the Outside thinks of the village) fades towards nothing by this much a day. */
+    regardFade: 0.05,
+    /** Newcomers still to come each year are topped up by this many, to at most the cap. */
+    poolPerYear: 2,
+    poolCap: 8,
+  },
+
+  /** Settlement tiers: what a hamlet must have to be a village, and a village to be a town; and what each tier allows. */
+  tiers: {
+    village: { people: 16, houses: 5 },
+    town: { people: 36, houses: 10, watchposts: 1 },
+    /** The suggested rules need all twelve from the start, so the rule cap does not depend on the tier (the field is kept to tune). */
+    maxRules: [12, 12, 12],
+    maxOrders: [8, 14, 24],
+  },
 } as const;
 
 /** The size of the standing watch the village keeps when there is a watch post, and while a raid is expected. */

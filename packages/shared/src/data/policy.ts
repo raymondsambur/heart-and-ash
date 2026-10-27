@@ -102,6 +102,7 @@ export interface RuleDef {
   act: RuleAct;
 }
 
+/** The most rules any village may keep (a hamlet keeps fewer: see `BAL.tiers.maxRules`). */
 export const MAX_RULES = 12;
 
 /**
@@ -171,6 +172,35 @@ export interface ReportView {
   unread: boolean;
 }
 
+// ---------------------------------------------------------------------------------------------------
+// Settlement tiers and the Outside (M5)
+// ---------------------------------------------------------------------------------------------------
+
+export const TIER_NAMES = ['hamlet', 'village', 'town'] as const;
+
+/** The tier a kind of building needs: 0 hamlet, 1 village, 2 town. */
+export const TIER_UNLOCK: Record<BuildKind, number> = { house: 0, field: 0, well: 0, shrine: 0, watchpost: 0, wall: 0, warehouse: 1, workshop: 1 };
+
+/** The Outside, as the manager sees it. */
+export interface OutsideView {
+  name: string;
+  /** -100..100: how the town beyond the map thinks of the village. */
+  regard: number;
+  /** 0..100: how well the town is doing. */
+  wealth: number;
+  /** The village's silver. */
+  silver: number;
+  /** A trade pact is in force. */
+  pact: boolean;
+  /** Days until the next caravan is expected (null when none is expected for a while), and what was heard lately. */
+  caravanIn: number | null;
+  news: string[];
+  /** What the next tier asks for, or null in a town. */
+  nextTier: string | null;
+  /** Prices a caravan pays today, silver per unit. */
+  prices: Record<string, number>;
+}
+
 export interface PolicyView {
   /** Priority level per group, in `JOB_GROUPS` order. */
   priorities: number[];
@@ -180,4 +210,6 @@ export interface PolicyView {
   away: boolean;
   /** Set when the village stopped itself because a crisis would have ended it. */
   crisis: string | null;
+  /** How many rules and orders the settlement's tier allows. */
+  maxRules: number;
 }

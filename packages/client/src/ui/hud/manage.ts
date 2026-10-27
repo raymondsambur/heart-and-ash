@@ -6,17 +6,25 @@
 import { BLUEPRINTS, BUILD_KINDS, CARETAKER_RULES, GROUP_LABEL, JOB_GROUPS, METRIC_LABEL, PRIORITY_LABEL, RULE_METRICS, type OfferView, type ReportView, type RuleAct, type RuleDef, type RuleMetric } from '@hearth/shared';
 import { addStrings, t } from '../../i18n';
 import type { UiContext } from '../context';
-import { h, loadJson, saveJson } from '../dom';
+import { h, isTypingTarget, loadJson, saveJson } from '../dom';
 import { icon } from '../icons';
 import { openModal } from '../widgets/modal';
 import { tabs } from '../widgets/tabs';
 
 addStrings({
   'manage.title': 'Manage',
-  'manage.toggle': 'Show or hide priorities, rules and reports',
+  'manage.toggle': 'Show or hide priorities, rules and reports (M)',
   'manage.tab.work': 'Work',
   'manage.tab.rules': 'Rules',
   'manage.tab.reports': 'Reports',
+  'manage.tab.outside': 'Outside',
+  'manage.outside.hint': 'The town beyond the map is not drawn. Its caravans buy what the village can spare and sell what it lacks, and its envoys ask for things. What it thinks of the village decides who comes to live here.',
+  'manage.outside.regard': 'Regard',
+  'manage.outside.caravan': 'Next caravan',
+  'manage.outside.prices': 'The caravans pay (silver each)',
+  'manage.outside.news': 'Lately heard',
+  'manage.outside.nonews': 'Nothing yet.',
+  'manage.outside.pact': 'A trade pact is in force.',
   'manage.work.hint': 'How much of the village’s labour goes where. People still choose for themselves, and eat, sleep and tend the sick first.',
   'manage.rules.hint': 'A rule acts while its condition holds, every game hour, even when you are away. Later rules win over earlier ones.',
   'manage.rules.empty': 'No rules yet. A rule such as "if food is under 7 days, set the rations to tight" lets the village look after itself.',
@@ -83,11 +91,13 @@ export function mountManage(host: HTMLElement, layers: HTMLElement, ui: UiContex
   const work = h('div', { class: 'manage-work' });
   const rulesBox = h('div', { class: 'manage-rules' });
   const reportsBox = h('div', { class: 'manage-reports' });
+  const outsideBox = h('div', { class: 'manage-outside' });
   const tabBar = tabs(
     [
       { id: 'work', label: t('manage.tab.work') },
       { id: 'rules', label: t('manage.tab.rules') },
       { id: 'reports', label: t('manage.tab.reports') },
+      { id: 'outside', label: t('manage.tab.outside') },
     ],
     (id) => {
       prefs.tab = id;
@@ -96,7 +106,7 @@ export function mountManage(host: HTMLElement, layers: HTMLElement, ui: UiContex
     },
     { initial: prefs.tab, label: t('manage.title') },
   );
-  const body = h('div', { class: 'panel-body manage-body' }, banner, tabBar.el, work, rulesBox, reportsBox);
+  const body = h('div', { class: 'panel-body manage-body' }, banner, tabBar.el, work, rulesBox, reportsBox, outsideBox);
   const el = h('section', { class: 'panel manage glass', 'aria-label': t('manage.title') }, head, body);
   host.appendChild(el);
 
@@ -104,6 +114,7 @@ export function mountManage(host: HTMLElement, layers: HTMLElement, ui: UiContex
     work.hidden = prefs.tab !== 'work';
     rulesBox.hidden = prefs.tab !== 'rules';
     reportsBox.hidden = prefs.tab !== 'reports';
+    outsideBox.hidden = prefs.tab !== 'outside';
   };
 
   // ---- work: one row per kind of work, five levels --------------------------------------------------
@@ -190,6 +201,23 @@ export function mountManage(host: HTMLElement, layers: HTMLElement, ui: UiContex
     reportsBox.replaceChildren(...(reports.length ? reports.map((r, i) => reportCard(r, ui, i === 0 && r.unread)) : [h('p', { class: 'manage-hint' }, t('manage.reports.empty'))]));
   };
 
+  // ---- the Outside ------------------------------------------------------------------------------------------------
+  const regardWord = (r: number): string => (r >= 40 ? 'warm' : r >= 10 ? 'friendly' : r > -10 ? 'neutral' : r > -40 ? 'cool' : 'hostile');
+  const renderOutside = (): void => {
+    const o = st.get('outside');
+    const status = st.get('status');
+    const line = (text: string): HTMLElement => h('p', { class: 'outside-line' }, text);
+    outsideBox.replaceChildren(
+      h('p', { class: 'manage-hint' }, t('manage.outside.hint')),
+      line(`${o.name || '...'}: ${t('manage.outside.regard')} ${regardWord(o.regard)} (${o.regard}), ${Math.round(status.silver)} silver in the village.`),
+      line(`${t('manage.outside.caravan')}: ${o.caravanIn === null ? '-' : o.caravanIn <= 0 ? 'any day' : `in about ${o.caravanIn} days`}.${o.pact ? ` ${t('manage.outside.pact')}` : ''}`),
+      line(`${t('manage.outside.prices')}: ${Object.entries(o.prices).map(([g, p]) => `${g === 'ration' ? 'food' : g} ${p}`).join(', ')}.`),
+      o.nextTier ? line(`Next: ${o.nextTier}`) : line('This settlement is a town.'),
+      h('p', { class: 'outside-line' }, t('manage.outside.news')),
+      h('ul', { class: 'outside-news' }, (o.news.length ? o.news : [t('manage.outside.nonews')]).map((n) => h('li', {}, n))),
+    );
+  };
+
   const renderState = (): void => {
     const p = st.get('policy');
     const unread = st.get('reports').filter((r) => r.unread).length + p.offers.length;
@@ -202,11 +230,18 @@ export function mountManage(host: HTMLElement, layers: HTMLElement, ui: UiContex
     toggle.setAttribute('aria-expanded', String(prefs.open));
     body.hidden = !prefs.open;
   };
-  toggle.onclick = () => {
+  const flip = (): void => {
     prefs.open = !prefs.open;
     saveJson(KEY, prefs);
     renderState();
   };
+  toggle.onclick = flip;
+  // M shows or hides the desk, as B does the build menu.
+  const onKey = (e: KeyboardEvent): void => {
+    if (e.key.toLowerCase() !== 'm' || e.ctrlKey || e.metaKey || e.altKey || isTypingTarget(e.target)) return;
+    flip();
+  };
+  window.addEventListener('keydown', onKey);
 
   // ---- decisions waiting: a card in the middle of the screen --------------------------------------------------------
   const offerHost = h('div', { class: 'offers', role: 'region', 'aria-label': 'Decisions' });
@@ -245,15 +280,17 @@ export function mountManage(host: HTMLElement, layers: HTMLElement, ui: UiContex
     renderWork();
     renderRules();
     renderReports();
+    renderOutside();
     renderOffers();
     maybeAway();
   };
   showTab();
   all();
-  const unsub = st.subscribe(['policy', 'reports'], all);
+  const unsub = st.subscribe(['policy', 'reports', 'outside', 'status'], all);
   return {
     destroy() {
       unsub();
+      window.removeEventListener('keydown', onKey);
       el.remove();
       offerHost.remove();
     },

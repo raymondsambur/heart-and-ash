@@ -7,6 +7,7 @@ import type { Ctx } from './ctx';
 import { foodDaysOf } from './economy';
 import { pushFeed } from './feed';
 import { arrive } from './life';
+import { settleOutsideOffer } from './outside';
 import type { CommandResult, Offer } from './types';
 import { stat } from './util';
 
@@ -54,7 +55,7 @@ function settle(c: Ctx, offer: Offer, option: string, auto: boolean): void {
       stat(c, 'refugees_turned_away', offer.n);
       pushFeed(c.st, c.pending, 'refugees', `${offer.n} refugees were sent on${auto ? ', as the village decided in your absence' : ''}.`);
     }
-  }
+  } else settleOutsideOffer(c, offer, option);
 }
 
 export function answerOffer(c: Ctx, id: number, option: string): CommandResult {

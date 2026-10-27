@@ -367,6 +367,29 @@ export interface SimState {
   /** Set while the manager is away; the crisis text when the village stopped itself. */
   away: { since: number; base: Base } | null;
   crisis: string | null;
+  /** M5: the village's silver, its settlement tier (0 hamlet, 1 village, 2 town), the most people it has had, and the town beyond the map. */
+  silver: number;
+  tier: 0 | 1 | 2;
+  peak: number;
+  outside: OutsideState;
+}
+
+/** The town beyond the map: how it thinks of the village, how it is doing, and when its people come. */
+export interface OutsideState {
+  name: string;
+  /** -100..100. */
+  regard: number;
+  /** 0..100. */
+  wealth: number;
+  /** A trade pact makes caravans come sooner. */
+  pact: boolean;
+  /** The day the next caravan arrives, and the day of the last envoy. */
+  caravanDay: number;
+  envoyDay: number;
+  /** Price shocks: good to multiplier and the day it ends. */
+  mods: Record<string, { x: number; until: number }>;
+  /** What was heard lately, newest last. */
+  news: string[];
 }
 
 /** A standing rule with what it remembers: whether its condition held last time, and the day it last placed an order. */
@@ -388,6 +411,8 @@ export interface Offer {
   fallback: string;
   /** What the offer is about (people, goods, coin). */
   n: number;
+  /** A sum for envoys (the tribute asked), and the kind of envoy. */
+  data?: Record<string, number>;
 }
 
 export interface Report {
@@ -419,6 +444,8 @@ export interface DirectorState {
   raid: { day: number; size: number; warned: boolean } | null;
   /** The day the next raid is meant to come (set after each one). */
   nextRaid: number;
+  /** Raiders added to the next raid by what the Outside says of the village or the roads (used up by it). */
+  raidBonus: number;
   /** Last day each kind of event happened, to keep them apart. */
   last: Record<string, number>;
   /** A travelling master who is staying: who, what they teach and until which day. */

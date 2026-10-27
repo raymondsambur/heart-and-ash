@@ -7,9 +7,10 @@ import {
   BLUEPRINTS,
   BUILD_RADIUS,
   BUILD_RULE_COOLDOWN,
+  MAX_RULES,
   DEFAULT_PRIORITY,
   JOB_GROUPS,
-  MAX_RULES,
+  BAL,
   METRIC_LABEL,
   PRIORITY_LABEL,
   PRIORITY_MULT,
@@ -203,7 +204,8 @@ export function setRule(c: Ctx, rule: RuleDef): CommandResult {
   if (bad) return fail('bad_rule', bad);
   const st = c.st;
   if (rule.id === 0) {
-    if (st.rules.length >= MAX_RULES) return fail('too_many_rules', `A village can keep ${MAX_RULES} rules. Remove one first.`);
+    const cap = Math.min(MAX_RULES, BAL.tiers.maxRules[st.tier]);
+    if (st.rules.length >= cap) return fail('too_many_rules', `A settlement of this size can keep ${cap} rules. Remove one first.`);
     st.rules.push({ id: st.nextRuleId++, enabled: rule.enabled !== false, cond: { ...rule.cond }, act: { ...rule.act } as RuleAct, active: false, last: -1e9 });
     return { ok: true, text: 'Rule added.' };
   }

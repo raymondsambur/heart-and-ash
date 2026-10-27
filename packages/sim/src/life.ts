@@ -13,6 +13,7 @@ import { COMING_OF_AGE, MARRIAGE_AGE, ageOf, newPerson, TRADE_ROTA } from './peo
 import { emptiestHome } from './construct';
 import { blightReach, spoil } from './economy';
 import { harvestKeeps } from './director';
+import { cameHome, newcomerCount } from './outside';
 import { addMood, bond, feedAbout, mem, relOf, stat } from './util';
 import { GROW_DAYS, TEND_HOURS, FIELD_YIELD } from './actions';
 import type { Person } from './types';
@@ -102,7 +103,8 @@ function returnHome(c: Ctx, p: Person): void {
   c.dirty();
   stat(c, 'returns');
   pushFeed(c.st, c.pending, 'arrive', `${p.name} came back to the village after ${c.day - (p.counters.leftDay ?? c.day)} days.`, [p.id]);
-  // They bring news: a rumour, and a story for the plaza.
+  // They bring news from beyond the map, and sometimes goods.
+  pushFeed(c.st, c.pending, 'news', cameHome(c, p), [p.id]);
   p.silver += c.rng.int(5, 40);
   addMood(c, p, 'home again', 6, 48);
   for (const a of [...p.ambitions]) {
@@ -242,8 +244,7 @@ export function dailyLife(c: Ctx): void {
 
   // newcomers: a few each season, more when the village is fed and safe
   if (day > 0 && day % DAYS_PER_SEASON === 0 && st.pool > 0) {
-    const fed = foodDays(c);
-    const n = fed > 20 ? c.rng.int(1, 2) : fed > 8 ? c.rng.int(0, 1) : 0;
-    if (n > 0) arrive(c, Math.min(n, st.pool));
+    const n = newcomerCount(c);
+    if (n > 0) arrive(c, n);
   }
 }

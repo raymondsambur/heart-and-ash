@@ -43,6 +43,9 @@ interface Result {
   orders: number;
   /** Population at the end of each game year (index 0 is year 1). */
   byYear: number[];
+  tier: number;
+  silver: number;
+  peak: number;
   /** First year the village fell below `COLLAPSE` people, or 0. */
   collapsedYear: number;
 }
@@ -115,7 +118,7 @@ function run(seed: number): Result {
   }
   const st = sim.inspect();
   const stuckAmbitions = st.people.reduce((s, p) => s + p.ambitions.filter((a) => !a.ended && a.stuck).length, 0);
-  return { seed, end: st.people.filter((p) => !p.away).length, low, lowDay, stats: st.stats, feed, stuckMax, idleMax, stuckAmbitions, moodAvg: moodSum / Math.max(1, moodN), moodMin, foodMin, ms: performance.now() - t0, placed: manager.placed, standing: standingOf(st.buildings), orders: st.orders.length, byYear, collapsedYear };
+  return { seed, end: st.people.filter((p) => !p.away).length, low, lowDay, stats: st.stats, feed, stuckMax, idleMax, stuckAmbitions, moodAvg: moodSum / Math.max(1, moodN), moodMin, foodMin, ms: performance.now() - t0, placed: manager.placed, standing: standingOf(st.buildings), orders: st.orders.length, byYear, collapsedYear, tier: st.tier, silver: st.silver, peak: st.peak };
 }
 
 const total: Record<string, number> = {};
@@ -136,6 +139,7 @@ for (const seed of SEEDS) {
   console.log(`  building: ${manage ? `orders placed ${Object.entries(r.placed).map(([k, v]) => `${k} ${v}`).join(', ') || 'none'}; ` : ''}finished ${s.buildings_finished ?? 0}, taken down ${s.buildings_removed ?? 0}, still in hand ${r.orders}; standing ${Object.entries(r.standing).map(([k, v]) => `${k} ${v}`).join(', ')}`);
   console.log(`  longest stuck with no way forward: ${r.stuckMax.toFixed(1)} game days; longest run of idle daily samples: ${r.idleMax} days`);
   console.log(`  winter and events: wood burned ${Math.round(s.wood_burned ?? 0)}, cold nights ${s.cold_nights ?? 0}, bad harvests ${s.bad_harvests ?? 0}, plagues ${s.plagues ?? 0} (cases ${s.plague_cases ?? 0}, recovered ${s.plague_recoveries ?? 0}), refugees taken ${s.refugees_taken ?? 0} / turned away ${s.refugees_turned_away ?? 0}`);
+  console.log(`  outside: tier at the end ${['hamlet', 'village', 'town'][r.tier]}, peak ${r.peak} people, silver ${Math.round(r.silver)}; caravans ${s.trades ?? 0} (earned ${Math.round(s.silver_earned ?? 0)}, spent ${Math.round(s.silver_spent ?? 0)}), tribute paid ${Math.round(s.tribute_paid ?? 0)} / refused ${s.tribute_refused ?? 0}, emigrants ${s.emigrants ?? 0}, refugees taken ${s.refugees_taken ?? 0}`);
   console.log(`  rules acted ${s.rules_fired ?? 0} times; decisions settled by the village ${s.offers_auto ?? 0}`);
   console.log(`  raids: ${s.raids ?? 0} (repelled ${s.raids_repelled ?? 0}, skirmish ${s.raids_skirmish ?? 0}, overrun ${s.raids_overrun ?? 0}), goods lost ${Math.round(s.loot ?? 0)}, wounds ${s.wounds ?? 0}`);
   console.log(`  population at the end of each year: ${r.byYear.join(', ')}${r.collapsedYear ? ` (collapsed in year ${r.collapsedYear})` : ''}`);

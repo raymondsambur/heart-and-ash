@@ -3,7 +3,7 @@
  * building or field the player tapped (progress, what is missing, take it down). While a tool is active the pointer lays out
  * a footprint on the ground: green where it may go, red where it may not (the same `canPlace` the sim applies).
  */
-import { BLUEPRINTS, BUILD_KINDS, blueprintOfKind, type OrderView, type PlaceWorld } from '@hearth/shared';
+import { BLUEPRINTS, BUILD_KINDS, TIER_NAMES, TIER_UNLOCK, blueprintOfKind, type OrderView, type PlaceWorld } from '@hearth/shared';
 import { t, tn } from '../../i18n';
 import type { DecodedWorld, PickGesture, PickResult } from '../../render/api';
 import type { Focus, MapTool } from '../../state/store';
@@ -180,12 +180,15 @@ export function mountBuild(host: HTMLElement, ui: UiContext, world: DecodedWorld
       ...BUILD_KINDS.map((k) => {
         const bp = BLUEPRINTS[k];
         const active = tool?.t === 'build' && tool.kind === k;
+        const need = TIER_UNLOCK[k] ?? 0;
+        const locked = st.get('status').tier < need;
+        const why = locked ? `A ${TIER_NAMES[need]} is needed to raise this: ${st.get('outside').nextTier ?? ''}` : bp.blurb;
         return h(
           'button',
-          { class: ['build-kind', active && 'active'], type: 'button', role: 'listitem', 'aria-pressed': String(active), title: bp.blurb, onclick: () => setTool(active ? null : { t: 'build', kind: k, rot: tool?.t === 'build' ? tool.rot : false }) },
+          { class: ['build-kind', active && 'active', locked && 'locked'], type: 'button', role: 'listitem', 'aria-pressed': String(active), 'aria-disabled': String(locked), title: why, onclick: () => (locked ? ui.toast(why, 'warn') : setTool(active ? null : { t: 'build', kind: k, rot: tool?.t === 'build' ? tool.rot : false })) },
           h('span', { class: 'build-kind-name' }, bp.label),
           h('span', { class: 'build-kind-size' }, `${bp.w}×${bp.d}`),
-          h('span', { class: 'build-kind-cost' }, costText(k) || t('build.free')),
+          h('span', { class: 'build-kind-cost' }, locked ? `Needs a ${TIER_NAMES[need]}` : costText(k) || t('build.free')),
         );
       }),
       h('button', { class: ['build-kind', 'build-demolish', tool?.t === 'demolish' && 'active'], type: 'button', role: 'listitem', 'aria-pressed': String(tool?.t === 'demolish'), title: t('build.demolishBlurb'), onclick: () => setTool(tool?.t === 'demolish' ? null : { t: 'demolish' }) }, h('span', { class: 'build-kind-name' }, icon('pickaxe'), ' ', t('build.demolish')), h('span', { class: 'build-kind-cost' }, t('build.demolishBlurb'))),
@@ -200,7 +203,7 @@ export function mountBuild(host: HTMLElement, ui: UiContext, world: DecodedWorld
     menu.hidden = !prefs.open;
   }
   render();
-  const unsub = st.subscribe(['orders', 'wishes', 'tool', 'focus', 'buildings', 'plots'], render);
+  const unsub = st.subscribe(['orders', 'wishes', 'tool', 'focus', 'buildings', 'plots', 'status'], render);
 
   return {
     handlePick,

@@ -11,12 +11,12 @@ import type { BuildingDef, PlotDef } from './terrain';
 import type { CarryKind, Dir, Look, NpcAct, NpcRole, WeatherKind } from './types';
 import type { NeedId } from './data/needs';
 import type { BuildKind } from './data/blueprints';
-import type { JobGroup, PolicyView, ReportView, RuleDef } from './data/policy';
+import type { JobGroup, OutsideView, PolicyView, ReportView, RuleDef } from './data/policy';
 import type { Speed } from './constants';
 
 export const WS_PATH = '/ws';
 export const LOGOUT_PATH = '/api/logout';
-export const PROTOCOL_VERSION = 4;
+export const PROTOCOL_VERSION = 5;
 
 // ---------------------------------------------------------------------------
 // HTTP API
@@ -242,6 +242,9 @@ export interface VillageStatus {
   fuelDays: number;
   /** 0 normal, 1 tight, 2 strict. */
   rationing: 0 | 1 | 2;
+  /** 0 hamlet, 1 village, 2 town (M5), and the village's silver. */
+  tier: 0 | 1 | 2;
+  silver: number;
   /** Tiles of Blight that reach the village once the shrines' ward is taken off. */
   blight: number;
   /** Something the manager should look at now: raiders are expected (`raid`) or sickness is in the village (`plague`). */
@@ -268,6 +271,8 @@ export interface VillageView {
   policy: PolicyView;
   /** The latest reports, newest last. */
   reports: ReportView[];
+  /** The town beyond the map (M5). */
+  outside: OutsideView;
 }
 
 // ---------------------------------------------------------------------------
@@ -326,6 +331,7 @@ export type S2C =
       /** Priorities, rules and offers, and the reports, when they changed. */
       policy?: PolicyView;
       reports?: ReportView[];
+      outside?: OutsideView;
       /** The villager list, when it changed (a few times a minute at most). */
       roster?: PersonBrief[];
       /** The order list and the wishes, when they changed. */

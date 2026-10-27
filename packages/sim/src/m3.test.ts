@@ -386,7 +386,7 @@ describe('saves', () => {
     delete raw.hearthDay;
     delete raw.dir;
     const st = restoreState(snap, new Rng(1));
-    expect(SNAPSHOT_VERSION).toBe(5);
+    expect(SNAPSHOT_VERSION).toBe(6);
     expect(st.rationing).toBe(0);
     expect(st.dir.raid).toBeNull();
     expect(st.dir.nextRaid).toBeGreaterThanOrEqual(40 + BAL.director.raid.first);

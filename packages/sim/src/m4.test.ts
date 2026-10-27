@@ -170,6 +170,7 @@ describe('the suggested rules', () => {
   it('are all valid and fit in a village, and a village left to them for two months does not fall apart', { timeout: 240_000 }, () => {
     expect(CARETAKER_RULES.length).toBeLessThanOrEqual(MAX_RULES);
     const sim = createSim({ seed: 31 });
+    (sim.inspect() as { tier: number }).tier = 2;
     for (const r of CARETAKER_RULES) expect(sim.command({ t: 'rule', rule: { ...r, id: 0 } }).ok).toBe(true);
     expect(sim.view().policy.rules).toHaveLength(CARETAKER_RULES.length);
     sim.command({ t: 'away', on: true });
@@ -323,7 +324,7 @@ describe('saves', () => {
     sim.command({ t: 'rule', rule: rule({ cond: { metric: 'wood', op: '<', value: 50 }, act: { t: 'priority', group: 'wood', level: 4 } }) });
     sim.command({ t: 'away', on: true });
     const snap = JSON.parse(JSON.stringify(sim.serialize())) as SimSnapshot;
-    expect(snap.v).toBe(5);
+    expect(snap.v).toBe(6);
     const back = createSim({ seed: 12, saved: snap });
     const v = back.view();
     expect(v.policy.priorities[JOB_GROUPS.indexOf('stone')]).toBe(4);

@@ -71,7 +71,7 @@ This is where the "anyone can do anything" promise lives.
 
 ### The Outside
 
-An abstract place (or a few) with its own simple state (wealth, needs, mood towards the village). It produces traders, envoys, emigrants and newcomers, buys and sells in bulk, and receives villagers who leave. It is a data model and an events source, not a map.
+An abstract place with its own simple state (`st.outside`: a name, wealth, regard for the village, a trade pact, the day of the next caravan, price shocks and news). It produces caravans and envoys (decisions put to the manager through `offers`), rumours, newcomers and emigrants, buys the village's surplus and sells what it lacks for silver, and receives villagers who leave and sends them home with news (`sim/outside.ts`). It is a data model and an events source, not a map. Settlement tiers (hamlet, village, town) live beside it: they rise with people and houses, never fall, and decide which buildings may be raised and how many rules and orders a manager can keep. Snapshot version 6, protocol version 5.
 
 ## Server (`packages/server`)
 

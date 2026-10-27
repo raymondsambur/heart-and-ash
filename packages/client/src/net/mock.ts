@@ -227,7 +227,7 @@ class MockSocket implements SocketLike {
     const od = JSON.stringify({ o: v.orders, w: v.wishes });
     const orders = od !== this.ordersJson;
     if (orders) this.ordersJson = od;
-    this.emit({ t: 'upd', time: v.time, speed: v.speed, population: v.population, ents, ...(add.length ? { add } : {}), ...(del.length ? { del } : {}), stock: v.stock, status: v.status, ...(this.changed('policy', v.policy) ? { policy: v.policy } : {}), ...(this.changed('reports', v.reports) ? { reports: v.reports } : {}), buildings: v.buildings, plots: v.plots, ...(roster ? { roster: v.roster } : {}), ...(orders ? { orders: v.orders, wishes: v.wishes } : {}) });
+    this.emit({ t: 'upd', time: v.time, speed: v.speed, population: v.population, ents, ...(add.length ? { add } : {}), ...(del.length ? { del } : {}), stock: v.stock, status: v.status, ...(this.changed('policy', v.policy) ? { policy: v.policy } : {}), ...(this.changed('reports', v.reports) ? { reports: v.reports } : {}), ...(this.changed('outside', v.outside) ? { outside: v.outside } : {}), buildings: v.buildings, plots: v.plots, ...(roster ? { roster: v.roster } : {}), ...(orders ? { orders: v.orders, wishes: v.wishes } : {}) });
     const lines: FeedEntry[] = [];
     for (const ev of sim.events()) if (ev.t === 'feed') lines.push({ ...ev.item });
     if (lines.length) this.emit({ t: 'feed', items: lines });

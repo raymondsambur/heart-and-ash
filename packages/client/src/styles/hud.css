@@ -1040,3 +1040,46 @@
 .away-report .report-line {
   font-size: 0.85rem;
 }
+
+.build-kind.locked {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.outside-line {
+  margin: 0.15rem 0;
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+.outside-news {
+  margin: 0.15rem 0 0 0.9rem;
+  padding: 0;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+.hint {
+  position: absolute;
+  left: 50%;
+  bottom: 5.5rem;
+  transform: translateX(-50%);
+  width: min(24rem, 92vw);
+  z-index: 4;
+  padding: 0.55rem 0.7rem;
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+.hint-text {
+  flex: 1;
+}
+.hint-step {
+  font-size: 0.62rem;
+  color: var(--text-faint);
+}
+@media (prefers-reduced-motion: reduce) {
+  .hud * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
