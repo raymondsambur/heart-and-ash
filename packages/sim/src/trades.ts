@@ -46,7 +46,11 @@ export function markHelp(c: Ctx, jobs: readonly Job[]): void {
     if (t && p.job === null) free.set(t, (free.get(t) ?? 0) + 1);
   }
   for (const j of jobs) {
-    if (!j.skill) continue;
+    // The watch is the guards' alone (the raid is the exception); the help rule is for the work of the fields, the forest and the like.
+    if (!j.skill || isDutyJob(j)) {
+      j.help = false;
+      continue;
+    }
     // Those already helping do not count as the trade's own, or the job would close on them and open again each hour.
     const own = j.claimed.filter((id) => {
       const t = c.person(id) ? tradeOf(c.person(id)!) : null;

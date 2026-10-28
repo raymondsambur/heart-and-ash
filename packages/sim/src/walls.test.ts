@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BAL, CARETAKER_RULES, O, GAME_DAY_MS, T, WALL_ARTS, builtSlots, canPlace, nearestSlot, planRing, reservedSlots, ringFailure, ringProgress, ringRects, ringSlots, wallCandidates, wallWhy, type BuildingDef, type WallRing } from '@hearth/shared';
 import { defenceOf } from './director';
 import { clearBrush, floraDay } from './flora';
-import { isClosed, keepsOutsideOpen, wallState } from './walls';
+import { arrivalPoint, isClosed, keepsOutsideOpen, outsideReach, wallState } from './walls';
 import { spotNear } from './move';
 import { createSim } from './sim';
 import { refreshJobs } from './jobs';
@@ -440,5 +440,23 @@ describe('trees beside the wall', () => {
     k.c.world.objects[i] = O.Pine;
     clearBrush(k.c, 41, 40, 1, 1, 0);
     expect(k.c.world.objects[i]).toBe(O.Pine);
+  });
+});
+
+describe('where newcomers appear', () => {
+  it('is the road out, with no gate yet or with the road open to the gate', () => {
+    const k = kit(3, 12);
+    const edge = k.c.sites.ofKind('edge')[0];
+    expect(arrivalPoint(k.c)).toEqual({ x: edge.x, y: edge.y });
+    const home = k.st.buildings.find((b) => b.kind === 'house')!;
+    k.st.buildings.push({ id: k.st.nextBuildingId++, kind: 'gateway', x: home.x, y: home.y - 12, w: 4, d: 1, door: { x: home.x, y: home.y - 11 } } as BuildingDef);
+    expect(arrivalPoint(k.c)).toEqual({ x: edge.x, y: edge.y });
+  });
+
+  it('counts what lies outside a gate, kind by kind', () => {
+    const k = kit(3, 12);
+    const ring = planRing(pw(k), approach(k))!;
+    const reach = outsideReach(k.c, { ...ring, gate: 0 });
+    for (const kind of ['forest', 'quarry', 'meadow', 'stream', 'edge'] as const) expect(reach[kind].r).toBeLessThanOrEqual(reach[kind].n);
   });
 });

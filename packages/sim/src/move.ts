@@ -65,27 +65,48 @@ export function stop(p: Person): void {
   p.stepLeft = 0;
 }
 
+/** The tiles other people stand on or are walking to, so no one is sent to stand on top of them. */
+function takenTiles(c: Ctx, who: number): Set<number> {
+  const out = new Set<number>();
+  const W = c.world.w;
+  for (const o of c.people) {
+    if (o.id === who || o.hidden || o.counters.dead) continue;
+    out.add(Math.round(o.y) * W + Math.round(o.x));
+    const s = o.plan[o.planIdx];
+    if (s && s.tx !== undefined && s.ty !== undefined) out.add(s.ty * W + s.tx);
+  }
+  return out;
+}
+
 /**
  * A free tile near a site, so people do not stack up on one spot. When `who` is given the tile is the same every time for that
- * person and site: someone who plans again on the way (they decide every few seconds) keeps walking to the same tile instead of
- * being sent to a new one each time and never arriving.
+ * person and site (someone who plans again on the way keeps walking to the same tile instead of being sent to a new one each time
+ * and never arriving), and it is not a tile someone else stands on or is walking to: if the ring of tiles round the site is full the
+ * next ring out is used.
  */
 export function spotNear(c: Ctx, x: number, y: number, r: number, who?: number): Point {
-  const span = 2 * r + 1;
-  for (let i = 0; i < 6; i++) {
-    let dx: number;
-    let dy: number;
-    if (who === undefined) {
-      dx = c.rng.int(-r, r);
-      dy = c.rng.int(-r, r);
-    } else {
-      const h = hash32(who, x * 4096 + y, i);
-      dx = (h % span) - r;
-      dy = ((h >>> 8) % span) - r;
+  if (who === undefined) {
+    for (let i = 0; i < 6; i++) {
+      const dx = c.rng.int(-r, r);
+      const dy = c.rng.int(-r, r);
+      if (c.open(x + dx, y + dy)) return { x: x + dx, y: y + dy };
     }
-    if (c.open(x + dx, y + dy)) return { x: x + dx, y: y + dy };
+    return { x, y };
   }
-  return { x, y };
+  const taken = takenTiles(c, who);
+  let firstOpen: Point | null = null;
+  for (let rr = r; rr <= r + 2; rr++) {
+    const span = 2 * rr + 1;
+    for (let i = 0; i < 10; i++) {
+      const h = hash32(who, x * 4096 + y, i + 16 * (rr - r));
+      const dx = (h % span) - rr;
+      const dy = ((h >>> 8) % span) - rr;
+      if (!c.open(x + dx, y + dy)) continue;
+      firstOpen ??= { x: x + dx, y: y + dy };
+      if (!taken.has((y + dy) * c.world.w + x + dx)) return { x: x + dx, y: y + dy };
+    }
+  }
+  return firstOpen ?? { x, y };
 }
 
 export function dist(ax: number, ay: number, bx: number, by: number): number {

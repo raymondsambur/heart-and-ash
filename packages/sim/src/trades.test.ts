@@ -127,6 +127,27 @@ describe('when no one of the trade is free', () => {
   });
 });
 
+describe('the watch', () => {
+  it('is never opened to others just because the guards are busy', () => {
+    const { k, people } = village('fighting', 'farming', 'farming');
+    const [guard, farmer] = people;
+    guard.trade = 'fighting';
+    farmer.trade = 'farming';
+    k.st.buildings.push({ id: k.st.nextBuildingId++, kind: 'gateway', x: 30, y: 30, w: 4, d: 1, door: { x: 30, y: 31 } } as never);
+    k.st.buildings.push({ id: k.st.nextBuildingId++, kind: 'watchpost', x: 40, y: 40, w: 2, d: 2, door: { x: 40, y: 42 } } as never);
+    k.c.sites.sync(k.st.buildings, k.st.plots, k.st.orders);
+    setStock(k, { ration: 400, wood: 400 });
+    refreshJobs(k.c);
+    const watch = k.st.jobs.find((j) => j.type === 'watch')!;
+    // the guard is busy at something else, and there are more places than guards
+    guard.job = k.st.jobs.find((j) => j.type !== 'watch')!.id;
+    refreshJobs(k.c);
+    expect(watch.slots).toBeGreaterThan(0);
+    expect(k.st.jobs.find((j) => j.type === 'watch')!.help).toBe(false);
+    expect(mayTake(k.c, farmer, k.st.jobs.find((j) => j.type === 'watch')!)).toBe(false);
+  });
+});
+
 describe('a trade nobody has', () => {
   it('is given to the adult best at it, sparing the only one of another trade', () => {
     const { k, people } = village('farming', 'farming', 'woodcraft');

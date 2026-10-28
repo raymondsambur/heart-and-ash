@@ -4,6 +4,7 @@
  */
 import { TERRAIN_INFO, WALL_ARTS, isPassable, ringProgress, ringSlots, type BuildingDef, type WallRing } from '@hearth/shared';
 import type { Ctx } from './ctx';
+import { outsideGate } from './sites';
 
 const finishedWalls = (c: Ctx): BuildingDef[] => c.st.buildings.filter((b) => WALL_ARTS.has(b.kind) && !b.con);
 
@@ -57,6 +58,20 @@ const OUTSIDE_KINDS = ['forest', 'quarry', 'meadow', 'stream', 'edge'] as const;
  * road out that lie outside the ring must still be reached, or the loop would shut the village off from the other side of a stream.
  */
 export function keepsOutsideOpen(c: Ctx, ring: WallRing): boolean {
+  const reach = outsideReach(c, ring);
+  let total = 0;
+  let reached = 0;
+  for (const k of OUTSIDE_KINDS) {
+    // The road out may lie across a stream from the rest: newcomers then come in at the gate (see `arrivalPoint`).
+    if (k !== 'edge' && reach[k].n > 0 && reach[k].r === 0) return false;
+    total += reach[k].n;
+    reached += reach[k].r;
+  }
+  return total === 0 || reached / total >= 0.85;
+}
+
+/** For each kind of place outside the ring: how many there are, and how many a person leaving by the gate can reach. */
+export function outsideReach(c: Ctx, ring: WallRing): Record<(typeof OUTSIDE_KINDS)[number], { n: number; r: number }> {
   const w = c.world;
   const slots = ringSlots(ring);
   const blocked = new Uint8Array(w.w * w.h);
@@ -89,8 +104,7 @@ export function keepsOutsideOpen(c: Ctx, ring: WallRing): boolean {
       stack.push(k);
     }
   }
-  let total = 0;
-  let reached = 0;
+  const out2 = {} as Record<(typeof OUTSIDE_KINDS)[number], { n: number; r: number }>;
   for (const kind of OUTSIDE_KINDS) {
     let n = 0;
     let r = 0;
@@ -99,12 +113,14 @@ export function keepsOutsideOpen(c: Ctx, ring: WallRing): boolean {
       n++;
       if (seen[s.y * w.w + s.x]) r++;
     }
-    if (n > 0 && r === 0) return false;
-    total += n;
-    reached += r;
+    out2[kind] = { n, r };
   }
-  return total === 0 || reached / total >= 0.85;
+  return out2;
 }
+
+/** The share of the places outside a gate must reach: most, and at the least. */
+const STRICT_REACH = 0.85;
+const RELAXED_REACH = 0.7;
 
 /** How much a trip to each kind of place outside the walls counts for in choosing the gate. */
 const TRIP_WEIGHT: Record<(typeof OUTSIDE_KINDS)[number], number> = { meadow: 1.5, forest: 1.2, stream: 1, edge: 1, quarry: 0.7 };
@@ -126,6 +142,8 @@ export function bestGate(c: Ctx, ring0: Omit<WallRing, 'gate'>, candidates: numb
   const dist = new Int32Array(w.w * w.h);
   let best = -1;
   let bestCost = Infinity;
+  let relaxed = -1;
+  let relaxedCost = Infinity;
   for (const i of candidates) {
     const g = slots[i];
     const out = g.rot ? (g.x === ring0.x1 ? [1, 0] : [-1, 0]) : g.y === ring0.y1 ? [0, 1] : [0, -1];
@@ -168,12 +186,58 @@ export function bestGate(c: Ctx, ring0: Omit<WallRing, 'gate'>, candidates: numb
       total += o.weight * (inner + (ok ? d : 250));
       weight += o.weight;
     }
-    if (outside.length > 0 && (reached / outside.length < 0.85 || [...kinds.values()].some((n) => n === 0))) continue;
+    // Every kind of work place must be reachable (the road out aside), and most places overall: at least 85%, or, when no gate does that
+    // (a stream can leave a pocket of the outside on its far side), at least 70%.
+    const share = outside.length > 0 ? reached / outside.length : 1;
+    if ([...kinds.entries()].some(([k, n]) => n === 0 && k !== 'edge') || share < RELAXED_REACH) continue;
     const cost = weight > 0 ? total / weight : inner;
-    if (cost < bestCost) {
-      bestCost = cost;
-      best = i;
+    if (share >= STRICT_REACH) {
+      if (cost < bestCost) {
+        bestCost = cost;
+        best = i;
+      }
+    } else if (cost < relaxedCost) {
+      relaxedCost = cost;
+      relaxed = i;
     }
   }
-  return best;
+  return best >= 0 ? best : relaxed;
+}
+
+/**
+ * Where newcomers and the returning appear: the road out at the edge of the map, unless a wall has cut it off from the gate (a stream
+ * can leave the road on the far side of the walls); then they appear just outside the gate. Null when the village has no road out.
+ */
+export function arrivalPoint(c: Ctx): { x: number; y: number } | null {
+  const edge = c.sites.ofKind('edge')[0];
+  if (!edge) return null;
+  const road = { x: edge.x, y: edge.y };
+  const gate = finishedWalls(c).find((b) => b.kind === 'gateway');
+  if (!gate) return road;
+  const w = c.world;
+  const door = outsideGate(gate, c.st.buildings);
+  const blocked = new Uint8Array(w.w * w.h);
+  for (const b of finishedWalls(c)) for (let y = b.y; y < b.y + b.d; y++) for (let x = b.x; x < b.x + b.w; x++) blocked[y * w.w + x] = 1;
+  const start = door.y * w.w + door.x;
+  if (door.x < 0 || door.y < 0 || door.x >= w.w || door.y >= w.h || !isPassable(w, door.x, door.y)) return road;
+  const seen = new Uint8Array(w.w * w.h);
+  const stack = [start];
+  seen[start] = 1;
+  const target = edge.y * w.w + edge.x;
+  while (stack.length) {
+    const cur = stack.pop()!;
+    if (cur === target) return road;
+    const x = cur % w.w;
+    const y = (cur / w.w) | 0;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= w.w || ny >= w.h) continue;
+      const k = ny * w.w + nx;
+      if (seen[k] || blocked[k] || !isPassable(w, nx, ny)) continue;
+      seen[k] = 1;
+      stack.push(k);
+    }
+  }
+  return door;
 }
