@@ -151,7 +151,8 @@ describe('rules', () => {
     expect(k.st.orders.filter((o) => o.kind === 'house')).toHaveLength(1);
   });
 
-  it('keep the village alive on their own: a tight-rations rule saves food over a thin stretch', { timeout: 60_000 }, () => {
+  it('keep the village alive on their own: a tight-rations rule makes the meals smaller over a thin stretch', { timeout: 60_000 }, () => {
+    // What each meal takes from the store, not what is left of it: the stock also depends on what happens to be gathered.
     const run = (withRule: boolean): number => {
       const sim = createSim({ seed: 11 });
       sim.step(2 * GAME_HOUR_MS);
@@ -160,9 +161,10 @@ describe('rules', () => {
       st.stock.meal = 0;
       if (withRule) sim.command({ t: 'rule', rule: rule({ cond: { metric: 'foodDays', op: '<', value: 7 }, act: { t: 'ration', level: 2 } }) });
       sim.step(3 * GAME_DAY_MS);
-      return st.stock.ration + st.stock.meal + (sim.inspect().stats.stored_ration ?? 0) * 0;
+      const stats = sim.inspect().stats;
+      return (stats.food_eaten ?? 0) / Math.max(1, stats.meals ?? 0);
     };
-    expect(run(true)).toBeGreaterThan(run(false));
+    expect(run(true)).toBeLessThan(run(false));
   });
 });
 

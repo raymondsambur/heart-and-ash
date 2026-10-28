@@ -9,6 +9,7 @@ import { pushFeed } from './feed';
 import { decayMemories } from './memory';
 import { stop } from './move';
 import { clamp } from './needs';
+import { arrivalPoint } from './walls';
 import { COMING_OF_AGE, MARRIAGE_AGE, ageOf, newPerson, TRADE_ROTA } from './people';
 import { emptiestHome } from './construct';
 import { blightReach, spoil } from './economy';
@@ -89,7 +90,7 @@ export function leave(c: Ctx, p: Person, returns: boolean, why: string): void {
 }
 
 function returnHome(c: Ctx, p: Person): void {
-  const edge = c.sites.ofKind('edge')[0];
+  const edge = arrivalPoint(c);
   p.away = null;
   p.x = p.nx = edge?.x ?? p.x;
   p.y = p.ny = edge?.y ?? p.y;
@@ -142,7 +143,7 @@ function giveBirth(c: Ctx, mother: Person): void {
 }
 
 export function arrive(c: Ctx, n: number, ages: [number, number] = [17, 46], how: 'newcomer' | 'refugee' = 'newcomer'): void {
-  const edge = c.sites.ofKind('edge')[0];
+  const edge = arrivalPoint(c);
   if (!edge) return;
   const basic = c.sites.sites.filter((s) => s.kind === 'store' || s.kind === 'plaza' || s.kind === 'water' || s.kind === 'shrine' || s.kind === 'field').map((s) => s.id);
   for (let i = 0; i < n; i++) {
