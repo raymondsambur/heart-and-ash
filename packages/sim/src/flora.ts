@@ -122,13 +122,18 @@ export function clearFlora(c: Ctx, x: number, y: number, w: number, d: number): 
   for (const k of Object.keys(c.st.chops)) if (inside(Number(k))) delete c.st.chops[Number(k)];
 }
 
-/** A wall is run through trees and brush: they are cut where it goes (nothing is left of them, and they do not grow back). */
-export function clearBrush(c: Ctx, x: number, y: number, w: number, d: number): void {
-  for (let ty = y; ty < y + d; ty++) {
-    for (let tx = x; tx < x + w; tx++) {
-      const i = ty * c.world.w + tx;
+/**
+ * A wall is run through trees and brush: they are cut where it goes (nothing is left of them, and they do not grow back). With a
+ * margin, the trees on that many tiles round it are cut as well, so no crown leans over the wall.
+ */
+export function clearBrush(c: Ctx, x: number, y: number, w: number, d: number, margin = 0): void {
+  const { w: W, h: H } = c.world;
+  for (let ty = Math.max(0, y - margin); ty < Math.min(H, y + d + margin); ty++) {
+    for (let tx = Math.max(0, x - margin); tx < Math.min(W, x + w + margin); tx++) {
+      const i = ty * W + tx;
       const o = c.world.objects[i];
-      if (TREE_CODES.has(o) || o === O.Bush || o === O.Flowers || o === O.Reeds) {
+      const inside = tx >= x && tx < x + w && ty >= y && ty < y + d;
+      if (TREE_CODES.has(o) || (inside && (o === O.Bush || o === O.Flowers || o === O.Reeds))) {
         c.world.objects[i] = O.None;
         c.touch(i);
         c.st.flora.push({ i, code: O.None, was: O.None, age: 0 });
@@ -136,6 +141,14 @@ export function clearBrush(c: Ctx, x: number, y: number, w: number, d: number): 
       }
     }
   }
+}
+
+/** Trees keep this many tiles back from a wall, on both sides. */
+export const WALL_CLEAR = 1;
+
+/** Every day: the trees next to a wall that stands (or is going up) are cut, including those of a village that built its wall before this rule. */
+export function clearAlongWalls(c: Ctx): void {
+  for (const b of c.st.buildings) if (b.kind === 'wall') clearBrush(c, b.x, b.y, b.w, b.d, WALL_CLEAR);
 }
 
 /** Whether something stands or is being raised on a tile (so a tree does not grow back through it). */
@@ -148,6 +161,7 @@ function occupied(c: Ctx, i: number): boolean {
 
 /** Once a day: what was cut or picked grows back, in the seasons when anything grows. */
 export function floraDay(c: Ctx): void {
+  clearAlongWalls(c);
   if (c.season === 3 || c.st.flora.length === 0) return;
   const keep: FloraEntry[] = [];
   for (const f of c.st.flora) {

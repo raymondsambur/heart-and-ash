@@ -42,7 +42,7 @@ import {
   type WorldData,
 } from '@hearth/shared';
 import { newField } from './actions';
-import { clearBrush, clearFlora } from './flora';
+import { clearBrush, clearFlora, WALL_CLEAR } from './flora';
 import { clearRoads } from './roads';
 import { tierReason } from './outside';
 import { bestGate, isClosed } from './walls';
@@ -211,7 +211,7 @@ export function placeOrder(c: Ctx, kind: BuildKind, x0: number, y0: number, rot0
   st.orders.push(order);
   clearFlora(c, x, y, w, d);
   clearRoads(c, x, y, w, d);
-  if (wall) clearBrush(c, x, y, w, d);
+  if (wall) clearBrush(c, x, y, w, d, WALL_CLEAR);
   structuresChanged(c);
 
   // The tile in front must be reachable from the village green with this standing there.
