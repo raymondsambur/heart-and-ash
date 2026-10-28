@@ -96,7 +96,7 @@ describe('the duty jobs', () => {
     refreshJobs(k.c);
     const watch = k.st.jobs.find((j) => j.key === 'watch:duty')!;
     expect(watch.slots).toBe(more.stand);
-    expect(k.st.jobs.find((j) => j.key === 'patrol:round')!.slots).toBe(1);
+    expect(k.st.jobs.find((j) => j.key === 'patrol:round')!.slots).toBe(2); // widened to the two guards
     const adults = k.c.people.length;
     expect(more.stand + more.patrol).toBeLessThanOrEqual(Math.max(2 + 1, Math.floor(adults * 0.5) + 2));
   });

@@ -3,7 +3,7 @@ import { ACTIONS, AMBITIONS, NEEDS, NEED_IDS, SKILL_IDS, SKILL_LABEL, TRAITS, xp
 import { describe } from './ambitions';
 import type { Ctx } from './ctx';
 import { needPhrase, lowestNeed, computeMood } from './needs';
-import { ageOf, bestSkill, COMING_OF_AGE, roleOf } from './people';
+import { ageOf, COMING_OF_AGE, roleOf, tradeOf } from './people';
 import type { Person } from './types';
 
 const SOURCE_WORD: Record<string, string> = {
@@ -118,7 +118,7 @@ export function entityView(c: Ctx, p: Person): EntityView {
   return e;
 }
 
-const SKILL_TITLE: Record<SkillId, string> = {
+export const SKILL_TITLE: Record<SkillId, string> = {
   farming: 'Farmer',
   foraging: 'Forager',
   hunting: 'Hunter',
@@ -136,12 +136,12 @@ const SKILL_TITLE: Record<SkillId, string> = {
   leadership: 'Speaker',
 };
 
-/** What a person is mostly known for: their best skill, or their age. */
+/** What a person is known for: their trade, or their age. */
 export function titleOf(p: Person, day: number): string {
   const age = ageOf(p, day);
   if (age < COMING_OF_AGE) return age < 3 ? 'Baby' : 'Child';
-  const best = bestSkill(p);
-  const base = p.skills[best].lv >= 3 ? SKILL_TITLE[best] : 'Villager';
+  const trade = tradeOf(p);
+  const base = trade ? SKILL_TITLE[trade] : 'Villager';
   return age >= 60 ? `Elder ${base.toLowerCase()}` : base;
 }
 

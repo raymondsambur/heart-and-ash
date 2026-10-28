@@ -317,4 +317,4 @@ describe('sim: golden run', () => {
   });
 });
 
-const GOLDEN = { facts: { people: 12, day: 4, jobsDone: 33, meals: 95, chats: 46 }, digest: '1fb6f0a3:44602' };
+const GOLDEN = { facts: { people: 12, day: 4, jobsDone: 25, meals: 94, chats: 29 }, digest: 'cac5d613:44967' };

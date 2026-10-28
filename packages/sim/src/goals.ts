@@ -11,6 +11,7 @@ import { calm, GUARD_DUTY, isDutyJob } from './duty';
 import { ageOf, COMING_OF_AGE, isGuard } from './people';
 import { worstGrudge } from './memory';
 import { priorityMult } from './policy';
+import { mayTake } from './trades';
 import type { Cand, Goal, Job, Person } from './types';
 import { compat, isFree, nearbyPeople, peekRel } from './util';
 
@@ -94,6 +95,7 @@ function jobCands(c: Ctx, p: Person, age: number): Cand[] {
   for (const job of c.st.jobs) {
     const mine = p.job === job.id;
     if (!mine && job.claimed.length >= job.slots) continue;
+    if (!mayTake(c, p, job)) continue;
     if (job.minSkill && job.skill && p.skills[job.skill].lv < job.minSkill) continue;
     if (elder && job.risky) continue;
     const refused = p.counters[`refuse:${job.id}`];
