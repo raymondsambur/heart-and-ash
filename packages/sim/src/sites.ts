@@ -10,6 +10,23 @@ import type { Site } from './types';
 const BLIGHT_LIMIT = 60;
 
 /** Site ids of what the village builds for itself (M2) start here, so they never collide with the ids of the map and the starting buildings. */
+/**
+ * Where the watch at a gate stands: outside it, two tiles beyond the wall on the side away from the village's houses (the gate
+ * door itself when there is nothing to tell inside from out).
+ */
+export function outsideGate(g: BuildingDef, buildings: readonly BuildingDef[]): { x: number; y: number } {
+  const homes = buildings.filter((b) => b.kind !== 'wall' && b.kind !== 'gateway' && !b.con);
+  if (homes.length === 0) return g.door;
+  const cx = homes.reduce((s, b) => s + b.x + b.w / 2, 0) / homes.length;
+  const cy = homes.reduce((s, b) => s + b.y + b.d / 2, 0) / homes.length;
+  if (g.w >= g.d) {
+    const south = g.y + g.d / 2 > cy;
+    return { x: g.x + (g.w >> 1), y: south ? g.y + g.d + 1 : g.y - 2 };
+  }
+  const east = g.x + g.w / 2 > cx;
+  return { x: east ? g.x + g.w + 1 : g.x - 2, y: g.y + (g.d >> 1) };
+}
+
 export const DYN_BUILDING_SITE = 100000;
 export const DYN_PLOT_SITE = 150000;
 export const DYN_ORDER_SITE = 200000;
@@ -126,7 +143,9 @@ export class SiteIndex {
     for (const b of buildings) {
       if (startIds.has(b.id) || b.con) continue;
       const kind = BUILDING_SITE[b.kind];
-      if (kind) list.push({ id: DYN_BUILDING_SITE + b.id, kind, x: b.door.x, y: b.door.y, building: b.id });
+      if (!kind) continue;
+      const at = b.kind === 'gateway' ? outsideGate(b, buildings) : b.door;
+      list.push({ id: DYN_BUILDING_SITE + b.id, kind, x: at.x, y: at.y, building: b.id });
     }
     for (const p of plots) {
       if (startPlots.has(p.id) || p.con) continue;

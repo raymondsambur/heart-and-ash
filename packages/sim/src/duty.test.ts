@@ -79,6 +79,24 @@ describe('where the watch stands', () => {
   });
 });
 
+describe('the watch at the gate', () => {
+  it('stands outside the wall, two tiles beyond it, on the side away from the houses', () => {
+    const k = kit();
+    const home = k.st.buildings.find((b) => b.kind === 'house')!;
+    const north = { id: k.st.nextBuildingId++, kind: 'gateway', x: home.x - 1, y: home.y - 15, w: 4, d: 1, door: { x: home.x, y: home.y - 14 } } as BuildingDef;
+    k.st.buildings.push(north);
+    const south = { id: k.st.nextBuildingId++, kind: 'gateway', x: home.x - 1, y: home.y + 20, w: 4, d: 1, door: { x: home.x, y: home.y + 19 } } as BuildingDef;
+    k.st.buildings.push(south);
+    const west = { id: k.st.nextBuildingId++, kind: 'gateway', x: home.x - 25, y: home.y, w: 1, d: 4, door: { x: home.x - 24, y: home.y } } as BuildingDef;
+    k.st.buildings.push(west);
+    k.c.sites.sync(k.st.buildings, k.st.plots, k.st.orders);
+    const at = (b: BuildingDef) => k.c.sites.ofKind('post').find((s) => s.building === b.id)!;
+    expect(at(north).y).toBe(north.y - 2);
+    expect(at(south).y).toBe(south.y + south.d + 1);
+    expect(at(west).x).toBe(west.x - 2);
+  });
+});
+
 describe('the duty jobs', () => {
   it('post a watch at a gate, a patrol once there are two guards, and keep it to a share of the adults', () => {
     const k = kit();

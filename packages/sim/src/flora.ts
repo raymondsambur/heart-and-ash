@@ -124,7 +124,8 @@ export function clearFlora(c: Ctx, x: number, y: number, w: number, d: number): 
 
 /**
  * A wall is run through trees and brush: they are cut where it goes (nothing is left of them, and they do not grow back). With a
- * margin, the trees on that many tiles round it are cut as well, so no crown leans over the wall.
+ * margin, the trees within that many tiles of it are cut as well, and the bushes on the tile next to it, so no crown or bush leans
+ * over the wall.
  */
 export function clearBrush(c: Ctx, x: number, y: number, w: number, d: number, margin = 0): void {
   const { w: W, h: H } = c.world;
@@ -133,7 +134,8 @@ export function clearBrush(c: Ctx, x: number, y: number, w: number, d: number, m
       const i = ty * W + tx;
       const o = c.world.objects[i];
       const inside = tx >= x && tx < x + w && ty >= y && ty < y + d;
-      if (TREE_CODES.has(o) || (inside && (o === O.Bush || o === O.Flowers || o === O.Reeds))) {
+      const beside = tx >= x - 1 && tx < x + w + 1 && ty >= y - 1 && ty < y + d + 1;
+      if (TREE_CODES.has(o) || (inside && (o === O.Bush || o === O.Flowers || o === O.Reeds)) || (beside && (o === O.Bush || o === O.BareBush))) {
         c.world.objects[i] = O.None;
         c.touch(i);
         c.st.flora.push({ i, code: O.None, was: O.None, age: 0 });
@@ -143,8 +145,8 @@ export function clearBrush(c: Ctx, x: number, y: number, w: number, d: number, m
   }
 }
 
-/** Trees keep this many tiles back from a wall, on both sides. */
-export const WALL_CLEAR = 1;
+/** Trees keep this many tiles back from a wall, on both sides (bushes one). */
+export const WALL_CLEAR = 2;
 
 /** Every day: the trees next to a wall that stands (or is going up) are cut, including those of a village that built its wall before this rule. */
 export function clearAlongWalls(c: Ctx): void {
