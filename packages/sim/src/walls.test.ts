@@ -392,8 +392,8 @@ describe('places on the map', () => {
 });
 
 describe('trees beside the wall', () => {
-  /** A bare ring slot with a tree on the tile next to it, and one two tiles off. */
-  function lined(k: Kit): { near: number; far: number; onIt: number } {
+  /** A bare ring slot with a tree on the tile next to it, one two tiles off and one three. */
+  function lined(k: Kit): { near: number; far: number; onIt: number; beyond: number } {
     const ring = planRing(pw(k), approach(k))!;
     raise(k, ring, 0);
     const s = ringSlots(ring)[0];
@@ -403,34 +403,39 @@ describe('trees beside the wall', () => {
     const near = s.rot ? at(s.x + 1, s.y) : at(s.x, s.y + 1);
     const far = s.rot ? at(s.x + 2, s.y) : at(s.x, s.y + 2);
     const onIt = at(s.x, s.y);
-    for (const i of [near, far, onIt]) {
+    const beyond = s.rot ? at(s.x + 3, s.y) : at(s.x, s.y + 3);
+    for (const i of [near, far, onIt, beyond]) {
       k.c.world.objects[i] = O.Oak;
       k.c.touch(i);
     }
-    return { near, far, onIt };
+    return { near, far, onIt, beyond };
   }
 
-  it('are cut a tile back from every wall that stands, each day, and trees further off are left', () => {
+  it('are cut two tiles back from every wall that stands, each day, and trees further off are left', () => {
     const k = kit(3, 12);
     const t = lined(k);
     floraDay(k.c);
     expect(k.c.world.objects[t.onIt]).toBe(O.None);
     expect(k.c.world.objects[t.near]).toBe(O.None);
-    expect(k.c.world.objects[t.far]).toBe(O.Oak);
+    expect(k.c.world.objects[t.far]).toBe(O.None);
+    expect(k.c.world.objects[t.beyond]).toBe(O.Oak);
   });
 
-  it('are cut a tile back when the piece is ordered, and bushes beside it stay', () => {
+  it('are cut when the piece is ordered, and bushes on the tile next to it as well, but not bushes further off', () => {
     const k = kit(3, 12);
     const W = k.c.world.w;
     const i = 40 * W + 40;
     const bush = 40 * W + 42;
+    const farBush = 40 * W + 43;
     for (const j of [i, i + 1, i + W]) k.c.world.objects[j] = O.Pine;
     k.c.world.objects[bush] = O.Bush;
-    clearBrush(k.c, 41, 40, 1, 1, 1);
+    k.c.world.objects[farBush] = O.Bush;
+    clearBrush(k.c, 41, 40, 1, 1, 2);
     expect(k.c.world.objects[i]).toBe(O.None);
     expect(k.c.world.objects[i + 1]).toBe(O.None);
     expect(k.c.world.objects[i + W]).toBe(O.None);
-    expect(k.c.world.objects[bush]).toBe(O.Bush);
+    expect(k.c.world.objects[bush]).toBe(O.None);
+    expect(k.c.world.objects[farBush]).toBe(O.Bush);
     // a margin of zero is the old behaviour: only the footprint
     k.c.world.objects[i] = O.Pine;
     clearBrush(k.c, 41, 40, 1, 1, 0);
