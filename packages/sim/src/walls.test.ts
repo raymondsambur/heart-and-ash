@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { BAL, CARETAKER_RULES, GAME_DAY_MS, T, WALL_ARTS, builtSlots, canPlace, nearestSlot, planRing, reservedSlots, ringFailure, ringProgress, ringRects, ringSlots, wallCandidates, wallWhy, type BuildingDef, type WallRing } from '@hearth/shared';
+import { BAL, CARETAKER_RULES, O, GAME_DAY_MS, T, WALL_ARTS, builtSlots, canPlace, nearestSlot, planRing, reservedSlots, ringFailure, ringProgress, ringRects, ringSlots, wallCandidates, wallWhy, type BuildingDef, type WallRing } from '@hearth/shared';
 import { defenceOf } from './director';
+import { clearBrush, floraDay } from './flora';
 import { isClosed, keepsOutsideOpen, wallState } from './walls';
 import { spotNear } from './move';
 import { createSim } from './sim';
@@ -387,5 +388,52 @@ describe('places on the map', () => {
     expect(new Set(a.map((q) => `${q.x},${q.y}`)).size).toBe(1);
     const spots = new Set(Array.from({ length: 12 }, (_, i) => spotNear(k.c, 80, 80, 1, 100 + i)).map((q) => `${q.x},${q.y}`));
     expect(spots.size).toBeGreaterThan(2);
+  });
+});
+
+describe('trees beside the wall', () => {
+  /** A bare ring slot with a tree on the tile next to it, and one two tiles off. */
+  function lined(k: Kit): { near: number; far: number; onIt: number } {
+    const ring = planRing(pw(k), approach(k))!;
+    raise(k, ring, 0);
+    const s = ringSlots(ring)[0];
+    const W = k.c.world.w;
+    const at = (x: number, y: number): number => y * W + x;
+    // beside the first tile of the piece, on the side away from the ring's start of row or column, and a second further out
+    const near = s.rot ? at(s.x + 1, s.y) : at(s.x, s.y + 1);
+    const far = s.rot ? at(s.x + 2, s.y) : at(s.x, s.y + 2);
+    const onIt = at(s.x, s.y);
+    for (const i of [near, far, onIt]) {
+      k.c.world.objects[i] = O.Oak;
+      k.c.touch(i);
+    }
+    return { near, far, onIt };
+  }
+
+  it('are cut a tile back from every wall that stands, each day, and trees further off are left', () => {
+    const k = kit(3, 12);
+    const t = lined(k);
+    floraDay(k.c);
+    expect(k.c.world.objects[t.onIt]).toBe(O.None);
+    expect(k.c.world.objects[t.near]).toBe(O.None);
+    expect(k.c.world.objects[t.far]).toBe(O.Oak);
+  });
+
+  it('are cut a tile back when the piece is ordered, and bushes beside it stay', () => {
+    const k = kit(3, 12);
+    const W = k.c.world.w;
+    const i = 40 * W + 40;
+    const bush = 40 * W + 42;
+    for (const j of [i, i + 1, i + W]) k.c.world.objects[j] = O.Pine;
+    k.c.world.objects[bush] = O.Bush;
+    clearBrush(k.c, 41, 40, 1, 1, 1);
+    expect(k.c.world.objects[i]).toBe(O.None);
+    expect(k.c.world.objects[i + 1]).toBe(O.None);
+    expect(k.c.world.objects[i + W]).toBe(O.None);
+    expect(k.c.world.objects[bush]).toBe(O.Bush);
+    // a margin of zero is the old behaviour: only the footprint
+    k.c.world.objects[i] = O.Pine;
+    clearBrush(k.c, 41, 40, 1, 1, 0);
+    expect(k.c.world.objects[i]).toBe(O.Pine);
   });
 });
