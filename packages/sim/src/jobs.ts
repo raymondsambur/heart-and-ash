@@ -11,6 +11,7 @@ import type { Ctx } from './ctx';
 import { dutyPlan } from './duty';
 import { woodGoal } from './economy';
 import { isGuard } from './people';
+import { fillTrades, markHelp, mayTake, widenSlots } from './trades';
 import type { Goal, Job } from './types';
 
 export interface Draft {
@@ -76,7 +77,7 @@ export function wanted(c: Ctx): Draft[] {
   // cooking
   if ((st.stock.ration ?? 0) >= 2 && (st.stock.meal ?? 0) < eaters * 1.2) out.push(draft('cook:meals', { kind: 'act', action: 'cook', label: 'cook for the village' }, 3, 2, { skill: 'cooking' }));
   // the dead
-  if (st.graves.some((g) => !g.buried)) out.push(draft('funeral:dead', { kind: 'act', action: 'bury_dead', label: 'bury the dead' }, 5, 3));
+  if (st.graves.some((g) => !g.buried)) out.push(draft('funeral:dead', { kind: 'act', action: 'bury_dead', label: 'bury the dead' }, 5, 3, { skill: 'building' }));
   // the village's builders
   out.push(...constructionJobs(c, draft));
   return out;
@@ -85,7 +86,7 @@ export function wanted(c: Ctx): Draft[] {
 /** Reconcile the board with what is wanted, keeping ids and claims of jobs that continue. */
 export function refreshJobs(c: Ctx): void {
   const st = c.st;
-  const want = wanted(c);
+  const want = widenSlots(c, wanted(c));
   const old = new Map<string, Job>();
   for (const j of st.jobs) old.set(j.key, j);
   const next: Job[] = [];
@@ -107,7 +108,15 @@ export function refreshJobs(c: Ctx): void {
     });
   }
   st.jobs = next;
-  // anyone whose job disappeared is free again
-  const ids = new Set(next.map((j) => j.id));
-  for (const p of c.people) if (p.job !== null && !ids.has(p.job)) p.job = null;
+  fillTrades(c, next);
+  markHelp(c, next);
+  // anyone whose job disappeared, or is not for their trade, is free again
+  const byId = new Map(next.map((j) => [j.id, j]));
+  for (const p of c.people) {
+    if (p.job === null) continue;
+    const job = byId.get(p.job);
+    if (job && mayTake(c, p, job)) continue;
+    if (job) job.claimed = job.claimed.filter((id) => id !== p.id);
+    p.job = null;
+  }
 }

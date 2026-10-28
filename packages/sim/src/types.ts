@@ -112,6 +112,8 @@ export interface Job {
   skill?: SkillId;
   place?: PlaceKind;
   risky?: boolean;
+  /** No one of the trade this job asks for is free to take it, so others may help (set on each refresh). */
+  help?: boolean;
   /** Seasons the job is open in. */
   label: string;
 }
@@ -213,6 +215,8 @@ export interface Person {
   /** Standing in a joint act with someone else until then (their own plan is paused). */
   talk: { with: number; until: number; kind: string } | null;
   job: number | null;
+  /** The trade the village gave them when nobody else had it; otherwise it follows their best skill (see tradeOf). */
+  trade?: SkillId;
   why: Why;
   nextDecide: number;
   /** How many plans in a row found nothing, and the blocker text. */

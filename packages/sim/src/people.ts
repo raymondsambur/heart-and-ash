@@ -26,9 +26,19 @@ export function bestSkill(p: Person): SkillId {
   return best;
 }
 
-/** A guard: best at fighting, and good at it (what the villager list calls "Guard"). */
+/**
+ * A person's trade, the work they keep to: the one the village gave them (`trade`), else their best skill once it is good (level 3).
+ * Null for someone with no trade yet, who may take any job and so finds one.
+ */
+export function tradeOf(p: Person): SkillId | null {
+  if (p.trade !== undefined) return p.trade;
+  const best = bestSkill(p);
+  return p.skills[best].lv >= 3 ? best : null;
+}
+
+/** A guard: the villager list calls them "Guard". */
 export function isGuard(p: Person): boolean {
-  return p.skills.fighting.lv >= 3 && bestSkill(p) === 'fighting';
+  return tradeOf(p) === 'fighting';
 }
 
 export function ageOf(p: Pick<Person, 'born'>, day: number): number {
